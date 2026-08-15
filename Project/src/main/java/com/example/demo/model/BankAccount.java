@@ -1,4 +1,4 @@
-package model;
+package com.example.demo.model;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
@@ -11,8 +11,9 @@ public class BankAccount {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    @Column(name = "customer_id")
-    private String customerId;
+    @ManyToOne
+    @JoinColumn(name = "customer_id", nullable = false)
+    private Customer customer;
 
     @Column(name = "account_number")
     private String accountNumber;
@@ -22,9 +23,9 @@ public class BankAccount {
     public BankAccount() {
     }
 
-    public BankAccount(String id, String customerId, String accountNumber, BigDecimal balance) {
+    public BankAccount(String id, Customer customer, String accountNumber, BigDecimal balance) {
         this.id = id;
-        this.customerId = customerId;
+        this.customer = customer;
         this.accountNumber = accountNumber;
         this.balance = balance;
     }
@@ -37,12 +38,12 @@ public class BankAccount {
         this.id = id;
     }
 
-    public String getCustomerId() {
-        return customerId;
+    public Customer getCustomer() {
+        return customer;
     }
 
-    public void setCustomerId(String customerId) {
-        this.customerId = customerId;
+    public void setCustomer(Customer customer) {
+        this.customer = customer;
     }
 
     public String getAccountNumber() {

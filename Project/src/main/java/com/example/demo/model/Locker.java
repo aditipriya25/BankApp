@@ -1,4 +1,4 @@
-package model;
+package com.example.demo.model;
 
 import jakarta.persistence.*;
 
@@ -13,7 +13,7 @@ public class Locker {
     @Column(name = "locker_number")
     private String lockerNumber;
 
-    private String size;
+    private String sizes;
     private String status;
 
     public Locker() {
@@ -22,7 +22,7 @@ public class Locker {
     public Locker(String id, String lockerNumber, String size, String status) {
         this.id = id;
         this.lockerNumber = lockerNumber;
-        this.size = size;
+        this.sizes = size;
         this.status = status;
     }
 
@@ -43,11 +43,11 @@ public class Locker {
     }
 
     public String getSize() {
-        return size;
+        return sizes;
     }
 
     public void setSize(String size) {
-        this.size = size;
+        this.sizes = size;
     }
 
     public String getStatus() {
