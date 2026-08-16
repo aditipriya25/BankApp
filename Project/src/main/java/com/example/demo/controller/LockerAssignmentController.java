@@ -46,4 +46,14 @@ public class LockerAssignmentController {
 
         return ResponseEntity.ok(assignment);
     }
+
+    @GetMapping("/my-assignment")
+    public ResponseEntity<LockerAssignment> getMyAssignment(
+            Authentication authentication) {
+
+        String email = authentication.getName();
+
+        return ResponseEntity.ok(
+                lockerAssignmentService.getMyAssignment(email));
+    }
 }

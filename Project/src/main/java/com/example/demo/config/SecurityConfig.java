@@ -41,8 +41,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/bank-customers/**").hasRole("CUSTOMER")
                         .requestMatchers("/api/bank-employees/**").hasRole("EMPLOYEE")
                         .requestMatchers("/api/locker-assignments/request").hasRole("CUSTOMER")
+                        .requestMatchers("/api/locker-assignments/my-assignment").hasRole("CUSTOMER")
+                        .requestMatchers("/api/slot-bookings/my-bookings").hasRole("CUSTOMER")
                         .requestMatchers("/api/locker-assignments/pending").hasRole("EMPLOYEE")
                         .requestMatchers("/api/locker-assignments/*/*/approve").hasRole("EMPLOYEE")
+                        .requestMatchers("/api/visit-logs/**").hasRole("EMPLOYEE")
 
                         .anyRequest().authenticated())
 

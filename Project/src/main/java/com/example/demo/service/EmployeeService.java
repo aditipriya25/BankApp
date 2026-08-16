@@ -27,4 +27,9 @@ public class EmployeeService {
 		employee.setPassword(encodedPassword);
 		return employeeRepo.save(employee);
 	}
+
+	public Employee getEmployeeByEmail(String email) {
+		return employeeRepo.findByEmail(email)
+				.orElseThrow(() -> new RuntimeException("Employee not found"));
+	}
 }

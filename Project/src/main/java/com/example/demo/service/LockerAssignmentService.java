@@ -86,4 +86,16 @@ public class LockerAssignmentService {
 
         return lockerAssignmentRepository.save(assignment);
     }
+
+    public LockerAssignment getMyAssignment(String customerEmail) {
+
+        Customer customer = customerRepository.findByEmail(customerEmail)
+                .orElseThrow(() -> new RuntimeException("Customer not found"));
+
+        return lockerAssignmentRepository
+                .findByCustomerIdAndRequestStatus(
+                        customer.getId(),
+                        "APPROVED")
+                .orElse(null);
+    }
 }
