@@ -3,6 +3,7 @@ package com.example.demo.model;
 import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Entity
 @Table(name = "Customer")
@@ -18,10 +19,11 @@ public class Customer {
     @Column(unique = true, nullable = false)
     private String email;
 
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
-    
+
     private String phone;
-    
+
     private String kycStatus;
 
     @ManyToOne
