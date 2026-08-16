@@ -11,14 +11,25 @@ public class LockerAssignment {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    @Column(name = "approved_by_employee_id")
-    private String approvedByEmployeeId;
+    @ManyToOne
+    @JoinColumn(name = "customer_id", nullable = false)
+    private Customer customer;
 
-    @Column(name = "locker_id")
-    private String lockerId;
+    @ManyToOne
+    @JoinColumn(name = "locker_id")
+    private Locker locker;
 
-    @Column(name = "customer_id")
-    private String customerId;
+    // @Column(name = "approved_by_employee_id")
+    // private String approvedByEmployeeId;
+    @ManyToOne
+    @JoinColumn(name = "approved_by_employee_id")
+    private Employee approvedByEmployee;
+
+    // @Column(name = "locker_id")
+    // private String lockerId;
+
+    // @Column(name = "customer_id")
+    // private String customerId;
 
     @Column(name = "request_status")
     private String requestStatus;
@@ -29,45 +40,46 @@ public class LockerAssignment {
     public LockerAssignment() {
     }
 
-    public LockerAssignment(String id, String approvedByEmployeeId, String lockerId, String customerId, String requestStatus, LocalDateTime assignedAt) {
-        this.id = id;
-        this.approvedByEmployeeId = approvedByEmployeeId;
-        this.lockerId = lockerId;
-        this.customerId = customerId;
-        this.requestStatus = requestStatus;
-        this.assignedAt = assignedAt;
-    }
-
     public String getId() {
         return id;
+    }
+
+    public LockerAssignment(String id, Customer customer, Locker locker, Employee approvedByEmployee,
+            String requestStatus, LocalDateTime assignedAt) {
+        this.id = id;
+        this.customer = customer;
+        this.locker = locker;
+        this.approvedByEmployee = approvedByEmployee;
+        this.requestStatus = requestStatus;
+        this.assignedAt = assignedAt;
     }
 
     public void setId(String id) {
         this.id = id;
     }
 
-    public String getApprovedByEmployeeId() {
-        return approvedByEmployeeId;
+    public Customer getCustomer() {
+        return customer;
     }
 
-    public void setApprovedByEmployeeId(String approvedByEmployeeId) {
-        this.approvedByEmployeeId = approvedByEmployeeId;
+    public void setCustomer(Customer customer) {
+        this.customer = customer;
     }
 
-    public String getLockerId() {
-        return lockerId;
+    public Locker getLocker() {
+        return locker;
     }
 
-    public void setLockerId(String lockerId) {
-        this.lockerId = lockerId;
+    public void setLocker(Locker locker) {
+        this.locker = locker;
     }
 
-    public String getCustomerId() {
-        return customerId;
+    public Employee getApprovedByEmployee() {
+        return approvedByEmployee;
     }
 
-    public void setCustomerId(String customerId) {
-        this.customerId = customerId;
+    public void setApprovedByEmployee(Employee approvedByEmployee) {
+        this.approvedByEmployee = approvedByEmployee;
     }
 
     public String getRequestStatus() {

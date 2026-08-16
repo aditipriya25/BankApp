@@ -10,10 +10,12 @@ public class Locker {
     @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    @Column(name = "locker_number")
+    @Column(name = "locker_number", unique = true, nullable = false)
     private String lockerNumber;
+    
+    @Column(name = "locker_size")
+    private String size;
 
-    private String sizes;
     private String status;
 
     public Locker() {
@@ -22,7 +24,7 @@ public class Locker {
     public Locker(String id, String lockerNumber, String size, String status) {
         this.id = id;
         this.lockerNumber = lockerNumber;
-        this.sizes = size;
+        this.size = size;
         this.status = status;
     }
 
@@ -43,11 +45,11 @@ public class Locker {
     }
 
     public String getSize() {
-        return sizes;
+        return size;
     }
 
     public void setSize(String size) {
-        this.sizes = size;
+        this.size = size;
     }
 
     public String getStatus() {
