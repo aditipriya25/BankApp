@@ -28,10 +28,10 @@ public class CustomerController {
         return customerService.getCustomer(id);
     }
 
-   
-//    public Customer addCustomer(@RequestBody Customer c) {
-//        return customerService.addCustomer(c);
-//    }
+   @PostMapping("/addCustomer")
+   public Customer addCustomer(@RequestBody Customer c) {
+       return customerService.addCustomer(c);
+   }
     
     @PostMapping("/{id}/addAccount")
     public void addAccountCustomer(@RequestBody BankAccount bk,@PathVariable String id) {
