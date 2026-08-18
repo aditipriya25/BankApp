@@ -20,4 +20,13 @@ public class GlobalExceptionHandler {
                         "error", "Unauthorized",
                         "message", ex.getMessage()));
     }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<Map<String, String>> handleRuntimeException(RuntimeException ex) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(Map.of(
+                        "error", "Bad Request",
+                        "message", ex.getMessage()));
+    }
 }

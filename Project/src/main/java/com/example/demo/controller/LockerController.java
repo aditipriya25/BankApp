@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,8 +36,9 @@ public class LockerController {
     }
 
     @GetMapping("/available")
-    @PreAuthorize("hasRole('EMPLOYEE')")
-    public List<Locker> getAvailableLockers() {
-        return lockerService.getAvailableLockers();
+    public List<Locker> getAvailableLockers(
+            @RequestParam(required = false) String size,
+            @RequestParam(required = false) BigDecimal maxPrice) {
+        return lockerService.getAvailableLockers(size, maxPrice);
     }
 }

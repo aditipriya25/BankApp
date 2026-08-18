@@ -17,4 +17,10 @@ public interface LockerAssignmentRepository extends JpaRepository<LockerAssignme
     Optional<LockerAssignment> findByCustomer_EmailAndRequestStatus(
             String email,
             String requestStatus);
+
+    Optional<LockerAssignment> findByCustomerIdAndRequestStatusIn(
+            String customerId,
+            List<String> requestStatuses);
+
+    List<LockerAssignment> findByCustomer_Email(String email);
 }

@@ -1,6 +1,7 @@
 package com.example.demo.model;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "locker")
@@ -16,15 +17,19 @@ public class Locker {
     @Column(name = "locker_size")
     private String size;
 
+    @Column(name = "price", nullable = false)
+    private BigDecimal price;
+
     private String status;
 
     public Locker() {
     }
 
-    public Locker(String id, String lockerNumber, String size, String status) {
+    public Locker(String id, String lockerNumber, String size, BigDecimal price, String status) {
         this.id = id;
         this.lockerNumber = lockerNumber;
         this.size = size;
+        this.price = price;
         this.status = status;
     }
 
@@ -50,6 +55,14 @@ public class Locker {
 
     public void setSize(String size) {
         this.size = size;
+    }
+
+    public BigDecimal getPrice() {
+        return price;
+    }
+
+    public void setPrice(BigDecimal price) {
+        this.price = price;
     }
 
     public String getStatus() {
