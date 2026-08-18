@@ -51,6 +51,18 @@ public class SecurityConfig {
                         .requestMatchers("/api/locker-assignments/*/reject").hasRole("EMPLOYEE")
                         .requestMatchers("/api/visit-logs/**").hasRole("EMPLOYEE")
 
+                        // ── KYC Endpoints ──────────────────────────────────────────────────────
+                        // Customer can submit their KYC documents
+                        .requestMatchers("/api/kyc/submit/**").hasRole("CUSTOMER")
+                        // Customer can check their own KYC status
+                        .requestMatchers("/api/kyc/status/**").hasRole("CUSTOMER")
+                        // Employee can view all pending KYC submissions
+                        .requestMatchers("/api/kyc/pending").hasRole("EMPLOYEE")
+                        // Employee can view ALL KYC records
+                        .requestMatchers("/api/kyc/all").hasRole("EMPLOYEE")
+                        // Employee can approve or reject a KYC document
+                        .requestMatchers("/api/kyc/*/review").hasRole("EMPLOYEE")
+
                         .anyRequest().authenticated())
 
                 .addFilterBefore(
