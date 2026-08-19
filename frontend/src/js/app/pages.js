@@ -132,7 +132,6 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
      ============================================================ */
   function customerDashboard() {
     if (!guarded('CUSTOMER')) return;
-    var custId = session.getCustomerId();
     shell.layout(
       '<div class="page-hd">' +
         '<p class="kicker">CUSTOMER PORTAL</p>' +
@@ -144,22 +143,20 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
       'customer-dashboard'
     );
 
-    /* Load KYC banner */
-    if (custId) {
-      api.get('/api/kyc/status/' + custId).then(function (kyc) {
-        var bannerEl = document.getElementById('kyc-banner');
-        if (!bannerEl) return;
-        if (!kyc || kyc.status === 'NOT_SUBMITTED') {
-          bannerEl.innerHTML = '<div class="notice error" style="margin-bottom:1rem;">⚠️ KYC not submitted. <a href="#/customer-kyc" style="color:inherit;font-weight:600;text-decoration:underline;">Complete KYC</a> before requesting a locker.</div>';
-        } else if (kyc.status === 'REJECTED') {
-          bannerEl.innerHTML = '<div class="notice error" style="margin-bottom:1rem;">❌ Your KYC was rejected. <a href="#/customer-kyc" style="color:inherit;font-weight:600;text-decoration:underline;">Re-submit KYC</a> to request a locker.</div>';
-        } else if (kyc.status === 'APPROVED') {
-          bannerEl.innerHTML = '<div class="notice success" style="margin-bottom:1rem;">✅ KYC Approved — you can request lockers freely.</div>';
-        } else {
-          bannerEl.innerHTML = '<div class="notice info" style="margin-bottom:1rem;">🕐 KYC is pending review.</div>';
-        }
-      }).catch(function () {});
-    }
+    /* Load KYC banner — always uses JWT, no stored ID needed */
+    api.get('/api/kyc/status/me').then(function (kyc) {
+      var bannerEl = document.getElementById('kyc-banner');
+      if (!bannerEl) return;
+      if (!kyc || kyc.status === 'NOT_SUBMITTED') {
+        bannerEl.innerHTML = '<div class="notice error" style="margin-bottom:1rem;">⚠️ KYC not submitted. <a href="#/customer-kyc" style="color:inherit;font-weight:600;text-decoration:underline;">Complete KYC</a> before requesting a locker.</div>';
+      } else if (kyc.status === 'REJECTED') {
+        bannerEl.innerHTML = '<div class="notice error" style="margin-bottom:1rem;">❌ Your KYC was rejected. <a href="#/customer-kyc" style="color:inherit;font-weight:600;text-decoration:underline;">Re-submit KYC</a> to request a locker.</div>';
+      } else if (kyc.status === 'APPROVED') {
+        bannerEl.innerHTML = '<div class="notice success" style="margin-bottom:1rem;">✅ KYC Approved — you can request lockers freely.</div>';
+      } else {
+        bannerEl.innerHTML = '<div class="notice info" style="margin-bottom:1rem;">🕐 KYC is pending review.</div>';
+      }
+    }).catch(function () {});
 
     /* Load all active assignments */
     api.get('/api/locker-assignments/my-assignments').then(function (list) {
@@ -317,15 +314,11 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
       }
     }
 
-    var custId = session.getCustomerId();
-
     function load(sz) {
       document.getElementById('data').innerHTML = loadingHtml();
       Promise.all([
         api.get('/api/lockers/all-public' + (sz ? '?size=' + encodeURIComponent(sz) : '')),
-        custId
-          ? api.get('/api/kyc/status/' + custId).catch(function () { return null; })
-          : Promise.resolve(null)
+        api.get('/api/kyc/status/me').catch(function () { return null; })
       ]).then(function (results) {
         var list        = results[0];
         var kyc         = results[1];
