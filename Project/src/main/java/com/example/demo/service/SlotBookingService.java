@@ -10,11 +10,14 @@ import com.example.demo.repository.SlotBookingRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
 @Service
 public class SlotBookingService {
+
+    private static final List<String> BOOKABLE_STATUSES = Arrays.asList("APPROVED", "PAID");
 
     private final CustomerRepository customerRepository;
     private final SlotBookingRepository slotBookingRepository;
@@ -33,8 +36,9 @@ public class SlotBookingService {
     public SlotBooking bookSlot(String customerId, LocalDateTime scheduledAt) {
 
         LockerAssignment assignment = lockerAssignmentRepository
-                .findByCustomerIdAndRequestStatus(customerId, "APPROVED")
-                .orElseThrow(() -> new RuntimeException("Customer does not have an approved locker"));
+                .findByCustomerIdAndRequestStatusIn(customerId, BOOKABLE_STATUSES)
+                .orElseThrow(() -> new RuntimeException(
+                        "Customer does not have an approved or paid locker assignment"));
 
         String otp = generateOtp();
 
@@ -65,11 +69,12 @@ public class SlotBookingService {
                 .orElseThrow(() -> new RuntimeException("Customer not found"));
 
         LockerAssignment assignment = lockerAssignmentRepository
-                .findByCustomerIdAndRequestStatus(
+                .findByCustomerIdAndRequestStatusIn(
                         customer.getId(),
-                        "APPROVED")
-                .orElseThrow(() -> new RuntimeException("No approved locker assignment found"));
+                        BOOKABLE_STATUSES)
+                .orElseThrow(() -> new RuntimeException(
+                        "No approved or paid locker assignment found"));
 
         return slotBookingRepository.findByAssignmentId(assignment.getId());
     }
-}
+}

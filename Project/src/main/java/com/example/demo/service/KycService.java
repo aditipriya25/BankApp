@@ -104,6 +104,17 @@ public class KycService {
         return kycDocumentRepository.save(kycDocument);
     }
 
+    /**
+     * Same as submitKyc but resolves the customer from their email (JWT token).
+     * Used by the /submit/me endpoint.
+     */
+    public KycDocument submitKycByEmail(String email, KycRequestDto dto) {
+        Customer customer = customerRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Customer not found with email: " + email));
+        return submitKyc(customer.getId(), dto);
+    }
+
+
     // ─────────────────────────────────────────────────────────────────────────
     // METHOD 2: autoValidate (THE DUMMY VALIDATION ENGINE)
     // Called internally by submitKyc()

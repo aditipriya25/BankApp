@@ -10,6 +10,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 
 @RestController
@@ -18,6 +19,9 @@ public class SlotBookingController {
 
     private final SlotBookingService slotBookingService;
     private final LockerAssignmentRepository lockerAssignmentRepository;
+
+    // Statuses that allow a customer to book a visit slot
+    private static final List<String> BOOKABLE_STATUSES = Arrays.asList("APPROVED", "PAID");
 
     public SlotBookingController(SlotBookingService slotBookingService,
             LockerAssignmentRepository lockerAssignmentRepository) {
@@ -31,8 +35,9 @@ public class SlotBookingController {
 
         String email = authentication.getName();
         LockerAssignment assignment = lockerAssignmentRepository
-                .findByCustomer_EmailAndRequestStatus(email, "APPROVED")
-                .orElseThrow(() -> new RuntimeException("Customer does not have an approved locker"));
+                .findByCustomer_EmailAndRequestStatusIn(email, BOOKABLE_STATUSES)
+                .orElseThrow(() -> new RuntimeException(
+                        "Customer does not have an approved or paid locker assignment"));
 
         SlotBooking booking = slotBookingService.bookSlot(assignment.getCustomer().getId(),
                 LocalDateTime.parse(scheduledAt));
@@ -46,9 +51,10 @@ public class SlotBookingController {
         String email = authentication.getName();
 
         LockerAssignment assignment = lockerAssignmentRepository
-                .findByCustomer_EmailAndRequestStatus(email, "APPROVED")
-                .orElseThrow(() -> new RuntimeException("Customer does not have an approved locker"));
+                .findByCustomer_EmailAndRequestStatusIn(email, BOOKABLE_STATUSES)
+                .orElseThrow(() -> new RuntimeException(
+                        "Customer does not have an approved or paid locker assignment"));
 
         return ResponseEntity.ok(slotBookingService.getBookingsForAssignment(assignment.getId()));
     }
-}
+}

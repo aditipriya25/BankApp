@@ -16,7 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.dto.KycRequestDto;
 import com.example.demo.dto.KycReviewDto;
+import com.example.demo.model.Customer;
 import com.example.demo.model.KycDocument;
+import com.example.demo.repository.CustomerRepository;
 import com.example.demo.service.KycService;
 
 /**
@@ -46,8 +48,12 @@ import com.example.demo.service.KycService;
 @RequestMapping("/api/kyc")
 public class KycController {
 
+
     @Autowired
     private KycService kycService;
+
+    @Autowired
+    private CustomerRepository customerRepository;
 
     // ─────────────────────────────────────────────────────────────────────────
     // ENDPOINT 1: Submit KYC  (CUSTOMER only)
@@ -84,6 +90,21 @@ public class KycController {
         return ResponseEntity.ok(result);
     }
 
+    /**
+     * Customer submits KYC using their JWT token (no customer ID needed in URL).
+     * Works for both signup-flow and login-flow customers.
+     */
+    @PostMapping("/submit/me")
+    public ResponseEntity<KycDocument> submitKycMe(
+            @RequestBody KycRequestDto dto,
+            Authentication authentication) {
+
+        String email = authentication.getName();
+        KycDocument result = kycService.submitKycByEmail(email, dto);
+        return ResponseEntity.ok(result);
+    }
+
+
     // ─────────────────────────────────────────────────────────────────────────
     // ENDPOINT 2: Check KYC Status  (CUSTOMER only)
     // GET /api/kyc/status/{customerId}
@@ -106,6 +127,16 @@ public class KycController {
     @GetMapping("/status/{customerId}")
     public ResponseEntity<Map<String, Object>> getKycStatus(@PathVariable String customerId) {
         Map<String, Object> status = kycService.getKycStatus(customerId);
+        return ResponseEntity.ok(status);
+    }
+
+    /** Returns the KYC status of the currently logged-in customer (no ID needed). */
+    @GetMapping("/status/me")
+    public ResponseEntity<Map<String, Object>> getMyKycStatus(Authentication authentication) {
+        String email = authentication.getName();
+        Customer customer = customerRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Customer not found"));
+        Map<String, Object> status = kycService.getKycStatus(customer.getId());
         return ResponseEntity.ok(status);
     }
 

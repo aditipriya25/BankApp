@@ -19,4 +19,6 @@ public interface LockerRepository extends JpaRepository<Locker, String> {
     List<Locker> findByStatusAndSize(String status, String size);
 
     List<Locker> findByStatusAndSizeAndPriceLessThanEqual(String status, String size, BigDecimal maxPrice);
+
+    List<Locker> findBySize(String size);
 }

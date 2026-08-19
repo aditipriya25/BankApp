@@ -3,43 +3,38 @@
  Copyright (c) 2014, 2026, Oracle and/or its affiliates.
  Licensed under The Universal Permissive License (UPL), Version 1.0
  as shown at https://oss.oracle.com/licenses/upl/
- -->
-
-<!-- ************************ IMPORTANT INFORMATION ************************************
-        This blank template contains a basic web application setup with a header and sticky footer.
-        It contains the Oracle JET framework and a default requireJS
-        configuration file to show how JET can be setup in a common application.
-        This project template can be used in conjunction with demo code from the JET
-        website to test JET component behavior and interactions.
-
-  Any CSS styling with the prefix "demo-" is for demonstration only and is not
-  provided as part of the JET framework.
-
-  Best practice patterns are provided as part of the JET website under the Samples section.
-
-  Aria Landmark role attributes are added to the different sections of the application
-  for accessibility compliance. If you change the type of content for a specific
-  section from what is defined, you should also change the role value for that
-  section to represent the appropriate content type.
-  ***************************** IMPORTANT INFORMATION ************************************ -->
+-->
 <html lang="en-us">
   <head>
-    <title>Banking Project | Secure Access</title>
+    <title>VaultBank | Secure Locker Banking</title>
     <meta http-equiv="x-ua-compatible" content="IE=edge"/>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-    <meta name="viewport" content="viewport-fit=cover, initial-scale=1.0"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
     <link rel="icon" type="image/x-icon" href="css/images/JET-Favicon-Red-32x32.png">
-    <link rel="apple-touch-icon-precomposed" href="css/images/touchicon.png">
-    <meta name="apple-mobile-web-app-title" content="Oracle JET">
 
-		<!-- injector:theme -->
-		<!-- endinjector -->
+    <!-- Inter font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Chart.js only (NO Tailwind - it breaks layout) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+    <!-- injector:theme -->
+    <!-- endinjector -->
+
     <link rel="stylesheet" href="css/app.css">
 
+    <!-- Apply saved theme BEFORE render to prevent flash -->
+    <script>
+      (function () {
+        var t = localStorage.getItem('vb-theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+      }());
+    </script>
   </head>
   <body>
-    <!-- This injects script tags for the main javascript files -->
-		<!-- injector:scripts -->
-		<!-- endinjector -->
+    <!-- injector:scripts -->
+    <!-- endinjector -->
   </body>
 </html>

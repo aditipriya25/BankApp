@@ -41,4 +41,11 @@ public class LockerService {
         }
         return lockerRepository.findByStatus("AVAILABLE");
     }
+
+    public List<Locker> getAllLockersBySize(String size) {
+        if (size != null && !size.isEmpty()) {
+            return lockerRepository.findBySize(size);
+        }
+        return lockerRepository.findAll();
+    }
 }

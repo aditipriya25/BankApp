@@ -1,6 +1,8 @@
 package com.example.demo.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,29 +21,33 @@ public class CustomerController {
 
     @Autowired
     private CustomerService customerService;
-    
+
     @Autowired
     private BankAccountService bankAccountService;
+
+    /** Returns the profile of the currently logged-in customer (resolved via JWT email). */
+    @GetMapping("/me")
+    public ResponseEntity<Customer> getMe(Authentication authentication) {
+        String email = authentication.getName();
+        Customer customer = customerService.getCustomerByEmail(email);
+        return ResponseEntity.ok(customer);
+    }
 
     @GetMapping("/{id}")
     public Customer getCustomer(@PathVariable String id) {
         return customerService.getCustomer(id);
     }
 
-   @PostMapping("/addCustomer")
-   public Customer addCustomer(@RequestBody Customer c) {
-       return customerService.addCustomer(c);
-   }
-    
-    @PostMapping("/{id}/addAccount")
-    public void addAccountCustomer(@RequestBody BankAccount bk,@PathVariable String id) {
-    	Customer c=customerService.getCustomer(id);
-    	bk.setCustomer(c);
-    	BankAccount newAccount=bankAccountService.addAccount(bk);
-    	c.getBankAccounts().add(newAccount);
-    	
-    	
+    @PostMapping("/addCustomer")
+    public Customer addCustomer(@RequestBody Customer c) {
+        return customerService.addCustomer(c);
     }
-    
-    
-}
+
+    @PostMapping("/{id}/addAccount")
+    public void addAccountCustomer(@RequestBody BankAccount bk, @PathVariable String id) {
+        Customer c = customerService.getCustomer(id);
+        bk.setCustomer(c);
+        BankAccount newAccount = bankAccountService.addAccount(bk);
+        c.getBankAccounts().add(newAccount);
+    }
+}

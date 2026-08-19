@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.demo.model.Customer;
 import com.example.demo.model.Employee;
+import com.example.demo.model.KycStatus;
 import com.example.demo.model.Locker;
 import com.example.demo.model.LockerAssignment;
 import com.example.demo.repository.CustomerRepository;
@@ -47,11 +48,10 @@ public class LockerAssignmentService {
         Customer customer = customerRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Customer not found"));
 
-        lockerAssignmentRepository.findByCustomerIdAndRequestStatusIn(
-                customer.getId(), ACTIVE_REQUEST_STATUSES)
-                .ifPresent(existing -> {
-                    throw new RuntimeException("You already have an active locker request");
-                });
+        // KYC must be APPROVED before a customer can request a locker
+        if (customer.getKycStatus() == null || !KycStatus.APPROVED.equals(customer.getKycStatus())) {
+            throw new RuntimeException("Your KYC verification must be approved before you can request a locker. Please complete KYC first.");
+        }
 
         Locker locker = lockerRepository.findByIdAndStatus(lockerId, "AVAILABLE")
                 .orElseThrow(() -> new RuntimeException("Locker not found or not available"));
@@ -154,19 +154,29 @@ public class LockerAssignmentService {
         return lockerAssignmentRepository.save(assignment);
     }
 
-    public LockerAssignment getMyAssignment(String customerEmail) {
-        Customer customer = customerRepository.findByEmail(customerEmail)
+    /**
+     * Returns all active locker assignments for this customer
+     * (PENDING, APPROVED, or PAID status). A customer may hold multiple lockers.
+     */
+    public List<LockerAssignment> getMyAssignments(String customerEmail) {
+        customerRepository.findByEmail(customerEmail)
                 .orElseThrow(() -> new RuntimeException("Customer not found"));
 
         List<LockerAssignment> assignments = lockerAssignmentRepository.findByCustomer_Email(customerEmail);
-        for (LockerAssignment assignment : assignments) {
-            expireIfOverdue(assignment);
-            if (ACTIVE_REQUEST_STATUSES.contains(assignment.getRequestStatus())
-                    || "PAID".equals(assignment.getRequestStatus())) {
-                return assignment;
-            }
-        }
-        return null;
+        // Expire any overdue ones first
+        assignments.forEach(this::expireIfOverdue);
+        // Return all that are still active
+        return assignments.stream()
+                .filter(a -> ACTIVE_REQUEST_STATUSES.contains(a.getRequestStatus()))
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    public List<LockerAssignment> getApprovedRequests() {
+        return lockerAssignmentRepository.findByRequestStatus("APPROVED");
+    }
+
+    public List<LockerAssignment> getRejectedRequests() {
+        return lockerAssignmentRepository.findByRequestStatus("REJECTED");
     }
 
     public List<LockerAssignment> getAwaitingPayment() {

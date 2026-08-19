@@ -41,4 +41,10 @@ public class LockerController {
             @RequestParam(required = false) BigDecimal maxPrice) {
         return lockerService.getAvailableLockers(size, maxPrice);
     }
+
+    @GetMapping("/all-public")
+    public List<Locker> getAllLockersPublic(
+            @RequestParam(required = false) String size) {
+        return lockerService.getAllLockersBySize(size);
+    }
 }

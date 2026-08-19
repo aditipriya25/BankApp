@@ -35,6 +35,16 @@ public class LockerAssignmentController {
         return ResponseEntity.ok(lockerAssignmentService.getPendingRequests());
     }
 
+    @GetMapping("/approved")
+    public ResponseEntity<List<LockerAssignment>> getApprovedRequests() {
+        return ResponseEntity.ok(lockerAssignmentService.getApprovedRequests());
+    }
+
+    @GetMapping("/rejected")
+    public ResponseEntity<List<LockerAssignment>> getRejectedRequests() {
+        return ResponseEntity.ok(lockerAssignmentService.getRejectedRequests());
+    }
+
     @PostMapping("/{assignmentId}/approve")
     public ResponseEntity<LockerAssignment> approveRequest(
             @PathVariable String assignmentId,
@@ -69,10 +79,11 @@ public class LockerAssignmentController {
         return ResponseEntity.ok(assignment);
     }
 
-    @GetMapping("/my-assignment")
-    public ResponseEntity<LockerAssignment> getMyAssignment(Authentication authentication) {
+    /** Returns ALL active locker assignments for the logged-in customer. */
+    @GetMapping("/my-assignments")
+    public ResponseEntity<List<LockerAssignment>> getMyAssignments(Authentication authentication) {
         String email = authentication.getName();
-        return ResponseEntity.ok(lockerAssignmentService.getMyAssignment(email));
+        return ResponseEntity.ok(lockerAssignmentService.getMyAssignments(email));
     }
 
     @GetMapping("/awaiting-payment")

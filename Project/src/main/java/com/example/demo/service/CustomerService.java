@@ -5,9 +5,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.example.demo.model.Customer;
-import com.example.demo.model.Employee;
 import com.example.demo.repository.CustomerRepository;
-import com.example.demo.repository.EmployeeRepository;
 
 @Service
 public class CustomerService {
@@ -18,9 +16,13 @@ public class CustomerService {
 	private PasswordEncoder passwordEncoder;
 
 	public Customer getCustomer(String id) {
-		Customer c = customerRepo.findById(id).get();
-		return c;
+		return customerRepo.findById(id)
+				.orElseThrow(() -> new RuntimeException("Customer not found with id: " + id));
+	}
 
+	public Customer getCustomerByEmail(String email) {
+		return customerRepo.findByEmail(email)
+				.orElseThrow(() -> new RuntimeException("Customer not found with email: " + email));
 	}
 
 	public Customer addCustomer(Customer c) {
