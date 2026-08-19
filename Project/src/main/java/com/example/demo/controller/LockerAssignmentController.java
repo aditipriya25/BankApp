@@ -32,20 +32,26 @@ public class LockerAssignmentController {
     }
 
     @PostMapping("/{assignmentId}/approve/{lockerId}")
-    public ResponseEntity<LockerAssignment> approveRequest(
-            @PathVariable String assignmentId,
-            @PathVariable String lockerId,
-            Authentication authentication) {
+public ResponseEntity<LockerAssignment> approveRequest(
+        @PathVariable String assignmentId,
+        @PathVariable String lockerId,
+        Authentication authentication) {
 
-        String employeeEmail = authentication.getName();
+    System.out.println("===== APPROVE ENDPOINT =====");
+    System.out.println("USER: " + authentication.getName());
+    System.out.println("AUTHORITIES: " + authentication.getAuthorities());
+    System.out.println("ASSIGNMENT ID: " + assignmentId);
+    System.out.println("LOCKER ID: " + lockerId);
 
-        LockerAssignment assignment = lockerAssignmentService.approveRequest(
-                assignmentId,
-                lockerId,
-                employeeEmail);
+    String employeeEmail = authentication.getName();
 
-        return ResponseEntity.ok(assignment);
-    }
+    LockerAssignment assignment = lockerAssignmentService.approveRequest(
+            assignmentId,
+            lockerId,
+            employeeEmail);
+
+    return ResponseEntity.ok(assignment);
+}
 
     @GetMapping("/my-assignment")
     public ResponseEntity<LockerAssignment> getMyAssignment(

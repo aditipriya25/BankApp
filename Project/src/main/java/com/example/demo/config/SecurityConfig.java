@@ -3,6 +3,7 @@ package com.example.demo.config;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -44,7 +45,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/locker-assignments/my-assignment").hasRole("CUSTOMER")
                         .requestMatchers("/api/slot-bookings/my-bookings").hasRole("CUSTOMER")
                         .requestMatchers("/api/locker-assignments/pending").hasRole("EMPLOYEE")
-                        .requestMatchers("/api/locker-assignments/*/*/approve").hasRole("EMPLOYEE")
+                        // .requestMatchers("/api/locker-assignments/*/approve/*").hasRole("EMPLOYEE")
+                        .requestMatchers(HttpMethod.POST,"/api/locker-assignments/*/approve/*").hasRole("EMPLOYEE")
+                        // .requestMatchers("/api/locker-assignments/*/approve/*").permitAll()
                         .requestMatchers("/api/visit-logs/**").hasRole("EMPLOYEE")
 
                         .anyRequest().authenticated())
