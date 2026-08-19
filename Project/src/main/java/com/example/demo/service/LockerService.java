@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,16 @@ public class LockerService {
     }
 
     public List<Locker> getAvailableLockers() {
+        return lockerRepository.findByStatus("AVAILABLE");
+    }
+
+    public List<Locker> getAvailableLockers(String size, BigDecimal maxPrice) {
+        if (size != null && maxPrice != null) {
+            return lockerRepository.findByStatusAndSizeAndPriceLessThanEqual("AVAILABLE", size, maxPrice);
+        }
+        if (size != null) {
+            return lockerRepository.findByStatusAndSize("AVAILABLE", size);
+        }
         return lockerRepository.findByStatus("AVAILABLE");
     }
 }

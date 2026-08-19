@@ -6,6 +6,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import com.example.demo.dto.LockerRequestDto;
+import com.example.demo.dto.PaymentRequestDto;
 import com.example.demo.model.LockerAssignment;
 import com.example.demo.service.LockerAssignmentService;
 
@@ -19,47 +21,62 @@ public class LockerAssignmentController {
     }
 
     @PostMapping("/request")
-    public ResponseEntity<LockerAssignment> requestLocker(Authentication authentication) {
+    public ResponseEntity<LockerAssignment> requestLocker(
+            @RequestBody LockerRequestDto request,
+            Authentication authentication) {
         String email = authentication.getName();
-        LockerAssignment assignment = lockerAssignmentService.createCustomerRequest(email);
+        LockerAssignment assignment = lockerAssignmentService.createCustomerRequest(
+                email, request.getLockerId());
         return ResponseEntity.ok(assignment);
     }
 
     @GetMapping("/pending")
     public ResponseEntity<List<LockerAssignment>> getPendingRequests() {
-        return ResponseEntity.ok(
-                lockerAssignmentService.getPendingRequests());
+        return ResponseEntity.ok(lockerAssignmentService.getPendingRequests());
     }
 
-    @PostMapping("/{assignmentId}/approve/{lockerId}")
-public ResponseEntity<LockerAssignment> approveRequest(
-        @PathVariable String assignmentId,
-        @PathVariable String lockerId,
-        Authentication authentication) {
-
-    System.out.println("===== APPROVE ENDPOINT =====");
-    System.out.println("USER: " + authentication.getName());
-    System.out.println("AUTHORITIES: " + authentication.getAuthorities());
-    System.out.println("ASSIGNMENT ID: " + assignmentId);
-    System.out.println("LOCKER ID: " + lockerId);
-
-    String employeeEmail = authentication.getName();
-
-    LockerAssignment assignment = lockerAssignmentService.approveRequest(
-            assignmentId,
-            lockerId,
-            employeeEmail);
-
-    return ResponseEntity.ok(assignment);
-}
-
-    @GetMapping("/my-assignment")
-    public ResponseEntity<LockerAssignment> getMyAssignment(
+    @PostMapping("/{assignmentId}/approve")
+    public ResponseEntity<LockerAssignment> approveRequest(
+            @PathVariable String assignmentId,
             Authentication authentication) {
 
-        String email = authentication.getName();
+        String employeeEmail = authentication.getName();
+        LockerAssignment assignment = lockerAssignmentService.approveRequest(
+                assignmentId, employeeEmail);
+        return ResponseEntity.ok(assignment);
+    }
 
-        return ResponseEntity.ok(
-                lockerAssignmentService.getMyAssignment(email));
+    @PostMapping("/{assignmentId}/reject")
+    public ResponseEntity<LockerAssignment> rejectRequest(
+            @PathVariable String assignmentId,
+            Authentication authentication) {
+
+        String employeeEmail = authentication.getName();
+        LockerAssignment assignment = lockerAssignmentService.rejectRequest(
+                assignmentId, employeeEmail);
+        return ResponseEntity.ok(assignment);
+    }
+
+    @PostMapping("/{assignmentId}/pay")
+    public ResponseEntity<LockerAssignment> payForLocker(
+            @PathVariable String assignmentId,
+            @RequestBody PaymentRequestDto paymentRequest,
+            Authentication authentication) {
+
+        String customerEmail = authentication.getName();
+        LockerAssignment assignment = lockerAssignmentService.processPayment(
+                assignmentId, customerEmail, paymentRequest.getPaymentMethod());
+        return ResponseEntity.ok(assignment);
+    }
+
+    @GetMapping("/my-assignment")
+    public ResponseEntity<LockerAssignment> getMyAssignment(Authentication authentication) {
+        String email = authentication.getName();
+        return ResponseEntity.ok(lockerAssignmentService.getMyAssignment(email));
+    }
+
+    @GetMapping("/awaiting-payment")
+    public ResponseEntity<List<LockerAssignment>> getAwaitingPayment() {
+        return ResponseEntity.ok(lockerAssignmentService.getAwaitingPayment());
     }
 }

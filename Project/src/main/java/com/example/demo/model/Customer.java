@@ -4,6 +4,9 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import com.fasterxml.jackson.annotation.JsonProperty;
+// Added: EnumType import for storing KycStatus as a String in the DB
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 
 @Entity
 @Table(name = "Customer")
@@ -24,7 +27,23 @@ public class Customer {
 
     private String phone;
 
-    private String kycStatus;
+    /**
+     * KYC Status of this customer.
+     * Stored in DB as a String ("PENDING", "APPROVED", "REJECTED") using @Enumerated(EnumType.STRING).
+     * Default is PENDING when a customer first registers.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kyc_status")
+    private KycStatus kycStatus = KycStatus.PENDING;
+
+    /**
+     * OneToOne link to the KycDocument entity.
+     * mappedBy = "customer" means KycDocument.customer is the owning side (it has the FK column).
+     * cascade = ALL means if we delete a Customer, their KycDocument is also deleted.
+     * fetch = LAZY means the KYC document is only loaded from DB when you call getKycDocument().
+     */
+    @OneToOne(mappedBy = "customer", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private KycDocument kycDocument;
 
     @ManyToOne
     @JoinColumn(name = "employee_id")
@@ -42,7 +61,7 @@ public class Customer {
 
     // Parameterized Constructor
     public Customer(String id, String fullName, Employee employee, String email, String password, String phone,
-            String kycStatus, List<BankAccount> bankAccounts) {
+            KycStatus kycStatus, List<BankAccount> bankAccounts) {
         super();
         this.id = id;
         this.fullName = fullName;
@@ -103,12 +122,22 @@ public class Customer {
         this.phone = phone;
     }
 
-    public String getKycStatus() {
+    public KycStatus getKycStatus() {
         return kycStatus;
     }
 
-    public void setKycStatus(String kycStatus) {
+    public void setKycStatus(KycStatus kycStatus) {
         this.kycStatus = kycStatus;
+    }
+
+    // ─── KycDocument Getter/Setter ─────────────────────────────────────────────
+
+    public KycDocument getKycDocument() {
+        return kycDocument;
+    }
+
+    public void setKycDocument(KycDocument kycDocument) {
+        this.kycDocument = kycDocument;
     }
 
     public List<BankAccount> getBankAccounts() {

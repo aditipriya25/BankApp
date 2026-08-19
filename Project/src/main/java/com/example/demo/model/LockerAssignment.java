@@ -37,6 +37,18 @@ public class LockerAssignment {
     @Column(name = "assigned_at")
     private LocalDateTime assignedAt;
 
+    @Column(name = "payment_status")
+    private String paymentStatus;
+
+    @Column(name = "payment_method")
+    private String paymentMethod;
+
+    @Column(name = "payment_due_date")
+    private LocalDateTime paymentDueDate;
+
+    @Column(name = "paid_at")
+    private LocalDateTime paidAt;
+
     public LockerAssignment() {
     }
 
@@ -45,13 +57,18 @@ public class LockerAssignment {
     }
 
     public LockerAssignment(String id, Customer customer, Locker locker, Employee approvedByEmployee,
-            String requestStatus, LocalDateTime assignedAt) {
+            String requestStatus, LocalDateTime assignedAt, String paymentStatus, String paymentMethod,
+            LocalDateTime paymentDueDate, LocalDateTime paidAt) {
         this.id = id;
         this.customer = customer;
         this.locker = locker;
         this.approvedByEmployee = approvedByEmployee;
         this.requestStatus = requestStatus;
         this.assignedAt = assignedAt;
+        this.paymentStatus = paymentStatus;
+        this.paymentMethod = paymentMethod;
+        this.paymentDueDate = paymentDueDate;
+        this.paidAt = paidAt;
     }
 
     public void setId(String id) {
@@ -96,5 +113,37 @@ public class LockerAssignment {
 
     public void setAssignedAt(LocalDateTime assignedAt) {
         this.assignedAt = assignedAt;
+    }
+
+    public String getPaymentStatus() {
+        return paymentStatus;
+    }
+
+    public void setPaymentStatus(String paymentStatus) {
+        this.paymentStatus = paymentStatus;
+    }
+
+    public String getPaymentMethod() {
+        return paymentMethod;
+    }
+
+    public void setPaymentMethod(String paymentMethod) {
+        this.paymentMethod = paymentMethod;
+    }
+
+    public LocalDateTime getPaymentDueDate() {
+        return paymentDueDate;
+    }
+
+    public void setPaymentDueDate(LocalDateTime paymentDueDate) {
+        this.paymentDueDate = paymentDueDate;
+    }
+
+    public LocalDateTime getPaidAt() {
+        return paidAt;
+    }
+
+    public void setPaidAt(LocalDateTime paidAt) {
+        this.paidAt = paidAt;
     }
 }

@@ -43,12 +43,26 @@ public class SecurityConfig {
                         .requestMatchers("/api/bank-employees/**").hasRole("EMPLOYEE")
                         .requestMatchers("/api/locker-assignments/request").hasRole("CUSTOMER")
                         .requestMatchers("/api/locker-assignments/my-assignment").hasRole("CUSTOMER")
+                        .requestMatchers("/api/locker-assignments/*/pay").hasRole("CUSTOMER")
+                        .requestMatchers("/api/lockers/available").hasAnyRole("CUSTOMER", "EMPLOYEE")
                         .requestMatchers("/api/slot-bookings/my-bookings").hasRole("CUSTOMER")
                         .requestMatchers("/api/locker-assignments/pending").hasRole("EMPLOYEE")
-                        // .requestMatchers("/api/locker-assignments/*/approve/*").hasRole("EMPLOYEE")
-                        .requestMatchers(HttpMethod.POST,"/api/locker-assignments/*/approve/*").hasRole("EMPLOYEE")
-                        // .requestMatchers("/api/locker-assignments/*/approve/*").permitAll()
+                        .requestMatchers("/api/locker-assignments/awaiting-payment").hasRole("EMPLOYEE")
+                        .requestMatchers("/api/locker-assignments/*/approve").hasRole("EMPLOYEE")
+                        .requestMatchers("/api/locker-assignments/*/reject").hasRole("EMPLOYEE")
                         .requestMatchers("/api/visit-logs/**").hasRole("EMPLOYEE")
+
+                        // ── KYC Endpoints ──────────────────────────────────────────────────────
+                        // Customer can submit their KYC documents
+                        .requestMatchers("/api/kyc/submit/**").hasRole("CUSTOMER")
+                        // Customer can check their own KYC status
+                        .requestMatchers("/api/kyc/status/**").hasRole("CUSTOMER")
+                        // Employee can view all pending KYC submissions
+                        .requestMatchers("/api/kyc/pending").hasRole("EMPLOYEE")
+                        // Employee can view ALL KYC records
+                        .requestMatchers("/api/kyc/all").hasRole("EMPLOYEE")
+                        // Employee can approve or reject a KYC document
+                        .requestMatchers("/api/kyc/*/review").hasRole("EMPLOYEE")
 
                         .anyRequest().authenticated())
 
