@@ -14,6 +14,10 @@ define(['app/session', 'app/utils'], function (session, utils) {
     logout:  '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
     moon:    '<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
     sun:     '<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>',
+    chat:    '<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+    person:  '<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+    money:   '<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
+    close2:  '<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>',
     menu:    '<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17" x2="21" y2="17"/></svg>'
   };
 
@@ -22,27 +26,46 @@ define(['app/session', 'app/utils'], function (session, utils) {
     ['customer-dashboard', 'Overview',          IC.home],
     ['customer-lockers',   'Find a Locker',     IC.locker],
     ['customer-bookings',  'Visit Bookings',    IC.cal],
-    ['customer-kyc',       'KYC Verification',  IC.shield]
+    ['customer-kyc',       'KYC Verification',  IC.shield],
+    ['customer-nominee',   'Nominees',          IC.person],
+    ['customer-agreement', 'My Agreement',      IC.doc],
+    ['customer-rent',      'Pay Rent',          IC.money],
+    ['customer-closure',   'Close Locker',      IC.close2],
+    ['chatbot',            'AI Assistant',       IC.chat]
   ];
   var EMP_NAV = [
-    ['employee-dashboard', 'Overview',           IC.home],
-    ['employee-lockers',   'Locker Inventory',   IC.locker],
-    ['employee-requests',  'Requests',           IC.inbox],
-    ['employee-kyc',       'KYC Reviews',        IC.doc],
-    ['employee-visits',    'Visit Logs',          IC.clock]
+    ['employee-dashboard',  'Overview',         IC.home],
+    ['employee-lockers',    'Locker Inventory', IC.locker],
+    ['employee-requests',   'Requests',         IC.inbox],
+    ['employee-kyc',        'KYC Reviews',      IC.doc],
+    ['employee-visits',     'Visit Logs',       IC.clock],
+    ['employee-nominee',    'All Nominees',     IC.person],
+    ['employee-agreements', 'Agreements',       IC.doc],
+    ['employee-rent-dues',  'Rent Dues',        IC.money],
+    ['employee-closures',   'Closures',         IC.close2],
+    ['chatbot',             'AI Assistant',      IC.chat]
   ];
 
   /* ── Page title map ─────────────────────────────────────── */
   var TITLES = {
-    'customer-dashboard': 'Overview',
-    'customer-lockers':   'Find a Locker',
-    'customer-bookings':  'Visit Bookings',
-    'customer-kyc':       'KYC Verification',
-    'employee-dashboard': 'Overview',
-    'employee-lockers':   'Locker Inventory',
-    'employee-requests':  'Requests',
-    'employee-kyc':       'KYC Reviews',
-    'employee-visits':    'Visit Logs'
+    'customer-dashboard':  'Overview',
+    'customer-lockers':    'Find a Locker',
+    'customer-bookings':   'Visit Bookings',
+    'customer-kyc':        'KYC Verification',
+    'customer-nominee':    'Nominees',
+    'customer-agreement':  'My Agreement',
+    'customer-rent':       'Pay Rent',
+    'customer-closure':    'Close Locker',
+    'employee-dashboard':  'Overview',
+    'employee-lockers':    'Locker Inventory',
+    'employee-requests':   'Requests',
+    'employee-kyc':        'KYC Reviews',
+    'employee-visits':     'Visit Logs',
+    'employee-nominee':    'All Nominees',
+    'employee-agreements': 'Agreements',
+    'employee-rent-dues':  'Rent Dues',
+    'employee-closures':   'Closures',
+    'chatbot':             'AI Assistant'
   };
 
   /* ── Theme helpers ──────────────────────────────────────── */
@@ -189,6 +212,20 @@ define(['app/session', 'app/utils'], function (session, utils) {
     /* Wire sign-out */
     var lo = document.querySelector('[data-action="logout"]');
     if (lo) lo.onclick = function () { session.clear(); utils.go('home'); };
+
+    /* ── Page-enter animation ───────────────────── */
+    var pb = document.querySelector('.page-body') || document.getElementById('pub-content');
+    if (pb) { pb.classList.add('page-enter'); setTimeout(function () { pb.classList.add('page-enter-active'); }, 30); }
+
+    /* ── Floating chatbot button (authenticated pages) ── */
+    if (signedIn && active !== 'chatbot') {
+      var fab = document.createElement('button');
+      fab.id = 'chatbot-fab';
+      fab.title = 'VaultBot — AI Assistant';
+      fab.innerHTML = IC.chat + '<span class="fab-pulse"></span>';
+      fab.onclick = function () { utils.go('chatbot'); };
+      document.body.appendChild(fab);
+    }
   }
 
   /* ── Flash message ──────────────────────────────────────── */

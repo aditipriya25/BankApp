@@ -746,12 +746,805 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
     };
   }
 
+
+  /* ============================================================
+     CUSTOMER — NOMINEE MANAGEMENT  (RBI para 5.1)
+     ============================================================ */
+  function customerNominee() {
+    if (!guarded('CUSTOMER')) return;
+    shell.layout(
+      '<div class="page-hd"><p class="kicker">RBI PARA 5.1</p><h1>Nominees</h1>' +
+      '<p>Add, update or cancel nominations for your lockers (Forms SL1 / SL2 / SL3 — Banking Regulation Act 1949).</p></div>' +
+      '<div id="data">' + loadingHtml() + '</div>',
+      'customer-nominee'
+    );
+
+    api.get('/api/locker-assignments/my-assignments').then(function (list) {
+      var paid = (list || []).filter(function (a) { return a.requestStatus === 'PAID'; });
+      if (!paid.length) {
+        document.getElementById('data').innerHTML =
+          '<div class="empty"><div class="empty-icon">📋</div><h3>No active lockers</h3>' +
+          '<p>Nominees can only be added after your locker request is approved and paid.</p>' +
+          '<a class="btn btn-primary" href="#/customer-dashboard">Go to Dashboard</a></div>';
+        return;
+      }
+
+      var html = paid.map(function (a) {
+        var lid = e(a.id), ln = e(a.locker && a.locker.lockerNumber);
+        return '<div class="panel" style="margin-bottom:1.2rem;" id="nom-panel-' + lid + '">' +
+          '<h3>🔐 Locker ' + ln + ' Nominees</h3>' +
+          '<div id="noms-' + lid + '"></div>' +
+          '<details style="margin-top:.8rem;">' +
+          '<summary class="btn btn-outline btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;">+ Add Nominee (Form SL1)</summary>' +
+          '<form id="nf-' + lid + '" class="inline-form" style="margin-top:.8rem;flex-wrap:wrap;" data-aid="' + lid + '">' +
+            '<div class="field"><label>Full name *</label><input class="form-input" name="name" required placeholder="Nominee full name"></div>' +
+            '<div class="field"><label>Relationship *</label><input class="form-input" name="relationship" required placeholder="e.g. Spouse, Child"></div>' +
+            '<div class="field"><label>Date of Birth</label><input class="form-input" name="dateOfBirth" type="date"></div>' +
+            '<div class="field"><label>Phone</label><input class="form-input" name="phone" placeholder="+91..."></div>' +
+            '<div class="field"><label>Email</label><input class="form-input" name="email" type="email"></div>' +
+            '<div class="field" style="flex:1 0 100%"><label>Address</label><input class="form-input" name="address"></div>' +
+            '<div class="field"><label>Photo URL</label><input class="form-input" name="photoUrl" type="url" placeholder="https://..."></div>' +
+            '<div class="field"><label>Form Type</label><select class="form-select" name="formType"><option value="SL1">SL1 (Single Hirer)</option><option value="SL1A">SL1A (Joint)</option></select></div>' +
+            '<div class="check-row"><input name="isMinor" type="checkbox"><span>Nominee is a minor</span></div>' +
+            '<div class="field" id="grd-' + lid + '" style="display:none;flex:1 0 100%"><label>Guardian name (required for minor)</label><input class="form-input" name="guardianName"></div>' +
+            '<div class="field" style="flex:none;align-self:flex-end"><button class="btn btn-primary" type="submit">Add Nominee</button></div>' +
+          '</form></details></div>';
+      }).join('');
+      document.getElementById('data').innerHTML = html;
+
+      paid.forEach(function (a) {
+        var lid = a.id;
+        // Load existing nominees
+        api.get('/api/nominees/' + lid).then(function (noms) {
+          var el = document.getElementById('noms-' + lid);
+          if (!el) return;
+          if (!noms || !noms.length) {
+            el.innerHTML = '<p style="color:var(--ink2);font-size:.88rem;">No nominees registered yet. Add one below.</p>';
+          } else {
+            el.innerHTML = '<div class="table-wrap"><table class="dt-table"><thead><tr><th>Name</th><th>Relationship</th><th>Form</th><th>Minor</th><th>Action</th></tr></thead><tbody>' +
+              noms.map(function (n) {
+                return '<tr><td>' + e(n.name) + '</td><td>' + e(n.relationship) + '</td>' +
+                  '<td><span class="cbadge cbadge-blue">' + e(n.formType) + '</span></td>' +
+                  '<td>' + (n.minor ? '✅' : '—') + '</td>' +
+                  '<td><button class="btn btn-sm btn-danger" data-del="' + e(n.id) + '" data-aid="' + e(lid) + '">Cancel (SL2)</button></td></tr>';
+              }).join('') + '</tbody></table></div>';
+            // Wire delete
+            el.querySelectorAll('[data-del]').forEach(function (btn) {
+              btn.onclick = async function () {
+                if (!confirm('Cancel this nomination (Form SL2)?')) return;
+                try { await api.delete('/api/nominees/nominee/' + btn.dataset.del); customerNominee(); shell.message('Nomination cancelled.', 'success'); }
+                catch (err) { shell.message(err.message, 'error'); }
+              };
+            });
+          }
+        }).catch(function () {});
+
+        // Wire minor toggle
+        var form = document.getElementById('nf-' + lid);
+        if (!form) return;
+        form.querySelector('[name="isMinor"]').onchange = function () {
+          document.getElementById('grd-' + lid).style.display = this.checked ? '' : 'none';
+        };
+        form.onsubmit = async function (ev) {
+          ev.preventDefault();
+          var vals = Object.fromEntries(new FormData(form));
+          vals.isMinor = form.querySelector('[name="isMinor"]').checked;
+          try { await api.post('/api/nominees/' + lid, vals); customerNominee(); shell.message('Nominee added!', 'success'); }
+          catch (err) { shell.message(err.message, 'error'); }
+        };
+      });
+    }).catch(showError('data'));
+  }
+
+  /* ============================================================
+     CUSTOMER — LOCKER AGREEMENT  (RBI para 2.1)
+     ============================================================ */
+  function customerAgreement() {
+    if (!guarded('CUSTOMER')) return;
+    shell.layout(
+      '<div class="page-hd"><p class="kicker">RBI PARA 2.1</p><h1>My Locker Agreement</h1>' +
+      '<p>Review and digitally sign your Board-approved locker agreement. A copy is provided to you (RBI 2.1.2).</p></div>' +
+      '<div id="data">' + loadingHtml() + '</div>',
+      'customer-agreement'
+    );
+
+    api.get('/api/locker-assignments/my-assignments').then(function (list) {
+      var paid = (list || []).filter(function (a) { return a.requestStatus === 'PAID'; });
+      if (!paid.length) {
+        document.getElementById('data').innerHTML =
+          '<div class="empty"><div class="empty-icon">📄</div><h3>No active lockers</h3><a class="btn btn-primary" href="#/customer-dashboard">Go to Dashboard</a></div>';
+        return;
+      }
+
+      Promise.all(paid.map(function (a) {
+        return api.get('/api/agreements/' + a.id).catch(function () { return null; }).then(function (ag) {
+          return { a: a, ag: ag };
+        });
+      })).then(function (results) {
+        var html = results.map(function (r) {
+          var a = r.a, ag = r.ag;
+          var ln = e(a.locker && a.locker.lockerNumber);
+          if (!ag) {
+            return '<div class="panel" style="margin-bottom:1rem;"><h3>🔐 Locker ' + ln + '</h3>' +
+              '<div class="notice info">Agreement not yet generated by bank. Please contact your branch.</div></div>';
+          }
+          var signed = ag.signedByCustomer;
+          return '<div class="panel" style="margin-bottom:1.5rem;">' +
+            '<h3>🔐 Locker ' + ln + ' — Agreement ' +
+              (signed ? '<span class="cbadge cbadge-green">✅ Signed</span>' : '<span class="cbadge cbadge-amber">⏳ Pending Your Signature</span>') + '</h3>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem;margin:.8rem 0;">' +
+              '<div class="stat-card ac-blue"><div class="sc-label">Agreement Date</div><div style="font-size:.9rem;">' + d(ag.agreementDate) + '</div></div>' +
+              '<div class="stat-card ac-green"><div class="sc-label">Stamp Duty</div><div style="font-size:.9rem;">' + (ag.stampDutyPaid ? '✅ Paid — ₹' + (ag.stampDutyAmount || 100) : '—') + '</div></div>' +
+              '<div class="stat-card ' + (signed ? 'ac-green' : 'ac-amber') + '"><div class="sc-label">Your Signature</div><div style="font-size:.9rem;">' + (signed ? '✅ ' + d(ag.customerSignedAt) : 'Pending') + '</div></div>' +
+            '</div>' +
+            '<details style="margin:.8rem 0;"><summary class="btn btn-ghost btn-sm" style="cursor:pointer;">📄 View Full Agreement Text</summary>' +
+            '<pre style="background:var(--bg2);border-radius:8px;padding:1rem;font-size:.8rem;white-space:pre-wrap;max-height:320px;overflow:auto;margin-top:.6rem;">' + e(ag.agreementContent || '') + '</pre></details>' +
+            (!signed ? '<div class="check-row" id="acc-' + e(a.id) + '"><input type="checkbox" id="ch-' + e(a.id) + '"><span>I have read and accept all terms of this agreement</span></div>' +
+              '<button id="sign-' + e(a.id) + '" class="btn btn-primary" style="margin-top:.5rem;" disabled data-aid="' + e(a.id) + '">✍️ Sign Agreement</button>' : '') +
+            '</div>';
+        }).join('');
+        document.getElementById('data').innerHTML = html;
+
+        results.forEach(function (r) {
+          if (!r.ag || r.ag.signedByCustomer) return;
+          var ch = document.getElementById('ch-' + r.a.id);
+          var btn = document.getElementById('sign-' + r.a.id);
+          if (ch && btn) {
+            ch.onchange = function () { btn.disabled = !this.checked; };
+            btn.onclick = async function () {
+              try { await api.post('/api/agreements/' + r.a.id + '/sign', {}); customerAgreement(); shell.message('Agreement signed! ✅', 'success'); }
+              catch (err) { shell.message(err.message, 'error'); }
+            };
+          }
+        });
+      });
+    }).catch(showError('data'));
+  }
+
+  /* ============================================================
+     CUSTOMER — RENT PAYMENT GATEWAY  (RBI para 2.2)
+     ============================================================ */
+  function customerRentPayment() {
+    if (!guarded('CUSTOMER')) return;
+    shell.layout(
+      '<div class="page-hd"><p class="kicker">ANNUAL RENT — RBI PARA 2.2</p><h1>Pay Locker Rent</h1>' +
+      '<p>Pay your annual locker rent securely. Non-payment for 3 consecutive years may lead to forced closure.</p></div>' +
+      '<div id="data">' + loadingHtml() + '</div>',
+      'customer-rent'
+    );
+
+    api.get('/api/locker-assignments/my-assignments').then(function (list) {
+      var paid = (list || []).filter(function (a) { return a.requestStatus === 'PAID'; });
+      if (!paid.length) {
+        document.getElementById('data').innerHTML = '<div class="empty"><div class="empty-icon">💳</div><h3>No active lockers</h3><a class="btn btn-primary" href="#/customer-dashboard">Dashboard</a></div>';
+        return;
+      }
+
+      var html = paid.map(function (a, idx) {
+        var aid = e(a.id), ln = e(a.locker && a.locker.lockerNumber);
+        var annualRent = a.locker && a.locker.price ? (parseFloat(a.locker.price) * 12).toLocaleString('en-IN') : 'N/A';
+        var rentDue = a.nextRentDueDate ? d(a.nextRentDueDate) : 'Not set';
+        var unpaid = a.consecutiveUnpaidYears || 0;
+        return '<div class="panel" style="margin-bottom:1.5rem;">' +
+          '<h3>🔐 Locker ' + ln + ' — Annual Rent: ₹' + annualRent + '</h3>' +
+          (unpaid > 0 ? '<div class="notice error">⚠️ ' + unpaid + ' consecutive year(s) of unpaid rent. Forced closure after 3 years (RBI 6.3.1).</div>' : '') +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin:.8rem 0;">' +
+            '<div class="stat-card ac-blue"><div class="sc-label">Rent Paid Until</div><div>' + (a.rentPaidUntil ? d(a.rentPaidUntil) : '—') + '</div></div>' +
+            '<div class="stat-card ' + (unpaid > 0 ? 'ac-amber' : 'ac-green') + '"><div class="sc-label">Next Due</div><div>' + rentDue + '</div></div>' +
+          '</div>' +
+          '<div id="gw-' + idx + '" class="gateway-tabs">' +
+            '<div class="gw-tab-bar">' +
+              '<button class="gw-tab active" data-tab="upi" data-idx="' + idx + '">📱 UPI</button>' +
+              '<button class="gw-tab" data-tab="card" data-idx="' + idx + '">💳 Card</button>' +
+              '<button class="gw-tab" data-tab="netbanking" data-idx="' + idx + '">🏦 Net Banking</button>' +
+              '<button class="gw-tab" data-tab="offline" data-idx="' + idx + '">🏢 Offline</button>' +
+            '</div>' +
+            '<div class="gw-content">' +
+              '<div class="gw-pane active" id="gp-upi-' + idx + '">' +
+                '<div class="upi-qr">📱 Scan to pay ₹' + annualRent + '</div>' +
+                '<input class="form-input" id="upi-id-' + idx + '" placeholder="Enter UPI ID (e.g. name@upi)" style="margin-top:.8rem;">' +
+              '</div>' +
+              '<div class="gw-pane" id="gp-card-' + idx + '">' +
+                '<div class="card-3d" id="card3d-' + idx + '">' +
+                  '<div class="card-front"><div class="card-chip">▤</div><div class="card-num">•••• •••• •••• ____</div><div class="card-name">CARD HOLDER</div></div>' +
+                '</div>' +
+                '<input class="form-input" id="cn-' + idx + '" placeholder="Card number" maxlength="19" style="margin-top:.8rem;">' +
+                '<div style="display:flex;gap:.6rem;margin-top:.5rem;"><input class="form-input" id="ex-' + idx + '" placeholder="MM/YY" maxlength="5" style="flex:1"><input class="form-input" id="cv-' + idx + '" placeholder="CVV" maxlength="3" type="password" style="flex:1"></div>' +
+              '</div>' +
+              '<div class="gw-pane" id="gp-netbanking-' + idx + '">' +
+                '<select class="form-select" id="bank-' + idx + '"><option value="">Select Bank</option>' +
+                  ['SBI','HDFC','ICICI','Axis','Kotak','PNB','Bank of Baroda'].map(function (b) { return '<option>' + b + '</option>'; }).join('') +
+                '</select>' +
+                '<p style="color:var(--ink2);font-size:.83rem;margin-top:.5rem;">You will be redirected to your bank\'s secure portal.</p>' +
+              '</div>' +
+              '<div class="gw-pane" id="gp-offline-' + idx + '">' +
+                '<div class="notice info">Pay at the branch with cash or cheque. Bring this receipt reference: <strong>OFFLINE-' + aid.substring(0,8).toUpperCase() + '</strong></div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<button class="btn btn-primary btn-wide" id="pay-btn-' + idx + '" style="margin-top:.8rem;" data-aid="' + aid + '" data-idx="' + idx + '">💳 Pay ₹' + annualRent + ' Now</button>' +
+          '<details style="margin-top:.8rem;"><summary class="btn btn-ghost btn-sm" style="cursor:pointer;">📜 View Payment History</summary><div id="hist-' + idx + '" style="margin-top:.6rem;"></div></details>' +
+        '</div>';
+      }).join('');
+      document.getElementById('data').innerHTML = html;
+
+      // Wire gateway tabs
+      document.querySelectorAll('.gw-tab').forEach(function (btn) {
+        btn.onclick = function () {
+          var idx = btn.dataset.idx, tab = btn.dataset.tab;
+          var gw = document.getElementById('gw-' + idx);
+          gw.querySelectorAll('.gw-tab').forEach(function (t) { t.classList.remove('active'); });
+          gw.querySelectorAll('.gw-pane').forEach(function (p) { p.classList.remove('active'); });
+          btn.classList.add('active');
+          var pane = document.getElementById('gp-' + tab + '-' + idx);
+          if (pane) pane.classList.add('active');
+        };
+      });
+
+      // Card flip animation
+      paid.forEach(function (_, idx) {
+        var cn = document.getElementById('cn-' + idx);
+        var card = document.getElementById('card3d-' + idx);
+        if (cn && card) {
+          cn.oninput = function () {
+            var v = this.value.replace(/\D/g,'').substring(0,16);
+            this.value = v.replace(/(.{4})/g,'$1 ').trim();
+            card.querySelector('.card-num').textContent =
+              (v + '________________').substring(0,16).replace(/(.{4})/g,'$1 ').trim();
+          };
+        }
+      });
+
+      // Wire pay buttons
+      paid.forEach(function (a, idx) {
+        var btn = document.getElementById('pay-btn-' + idx);
+        if (!btn) return;
+        btn.onclick = async function () {
+          var gw = document.getElementById('gw-' + idx);
+          var activeTab = gw.querySelector('.gw-tab.active').dataset.tab;
+          var dto = { paymentMethod: activeTab.toUpperCase() };
+          if (activeTab === 'upi') dto.upiId = (document.getElementById('upi-id-' + idx) || {}).value || '';
+          if (activeTab === 'card') dto.cardNumber = (document.getElementById('cn-' + idx) || {}).value || '';
+          if (activeTab === 'netbanking') dto.bankName = (document.getElementById('bank-' + idx) || {}).value || '';
+          btn.disabled = true; btn.textContent = '⏳ Processing…';
+          try {
+            var result = await api.post('/api/rent/' + a.id + '/pay', dto);
+            btn.textContent = '✅ Paid!';
+            btn.style.background = 'var(--success)';
+            shell.message('Rent paid successfully! Transaction ID: ' + result.transactionId, 'success');
+            // Load history
+            var hist = document.getElementById('hist-' + idx);
+            if (hist) loadRentHistory(a.id, hist);
+          } catch (err) {
+            btn.disabled = false; btn.textContent = '💳 Retry Payment';
+            btn.style.background = '';
+            shell.message(err.message, 'error');
+          }
+        };
+
+        // Load history on open
+        var histEl = document.getElementById('hist-' + idx);
+        if (histEl) loadRentHistory(a.id, histEl);
+      });
+
+      function loadRentHistory(aid, el) {
+        api.get('/api/rent/' + aid + '/history').then(function (items) {
+          if (!items || !items.length) { el.innerHTML = '<p style="color:var(--ink2);font-size:.85rem;">No payments yet.</p>'; return; }
+          el.innerHTML = '<table class="dt-table"><thead><tr><th>Year</th><th>Amount</th><th>Method</th><th>Date</th><th>Receipt</th></tr></thead><tbody>' +
+            items.map(function (p) {
+              return '<tr><td>' + e(String(p.paymentYear)) + '</td><td>₹' + e(String(p.amount)) + '</td>' +
+                '<td>' + b(p.paymentMethod) + '</td><td>' + d(p.paidAt) + '</td>' +
+                '<td><code style="font-size:.78rem;background:var(--bg3);padding:.1rem .4rem;border-radius:4px;">' + e(p.receiptNumber) + '</code></td></tr>';
+            }).join('') + '</tbody></table>';
+        }).catch(function () {});
+      }
+    }).catch(showError('data'));
+  }
+
+  /* ============================================================
+     CUSTOMER — LOCKER CLOSURE  (RBI Part VI)
+     ============================================================ */
+  function customerClosure() {
+    if (!guarded('CUSTOMER')) return;
+    shell.layout(
+      '<div class="page-hd"><p class="kicker">RBI PART VI</p><h1>Close My Locker</h1>' +
+      '<p>Initiate voluntary closure or file a death-claim for your locker. All closures follow RBI guidelines.</p></div>' +
+      '<div id="data">' + loadingHtml() + '</div>',
+      'customer-closure'
+    );
+
+    api.get('/api/locker-assignments/my-assignments').then(function (list) {
+      var active = (list || []).filter(function (a) {
+        return a.requestStatus === 'PAID' && (!a.closureStatus || a.closureStatus === 'NONE');
+      });
+      var inClosure = (list || []).filter(function (a) {
+        return a.closureStatus && a.closureStatus !== 'NONE';
+      });
+
+      var html = '';
+
+      if (inClosure.length) {
+        html += '<div class="panel" style="margin-bottom:1rem;"><h2>🔄 Pending Closures</h2>' +
+          inClosure.map(function (a) {
+            return '<div class="closure-track">' +
+              '<h4>Locker ' + e(a.locker && a.locker.lockerNumber) + ' — ' + b(a.closureType) + '</h4>' +
+              '<div class="timeline">' +
+                closureStep('Requested', a.closureStatus, ['REQUESTED','NOTICE_ISSUED','IN_PROGRESS','COMPLETED']) +
+                closureStep('Notice Issued', a.closureStatus, ['NOTICE_ISSUED','IN_PROGRESS','COMPLETED']) +
+                closureStep('In Progress', a.closureStatus, ['IN_PROGRESS','COMPLETED']) +
+                closureStep('Completed', a.closureStatus, ['COMPLETED']) +
+              '</div></div>';
+          }).join('') + '</div>';
+      }
+
+      if (!active.length) {
+        html += '<div class="empty"><div class="empty-icon">✅</div><h3>No eligible lockers for closure</h3>' +
+          '<p>You have no active paid lockers, or all are already in the closure process.</p></div>';
+      } else {
+        html += '<div class="panel"><h2>Initiate Closure</h2>' +
+          '<div class="tab-bar" style="margin-bottom:1rem;">' +
+            '<button class="tab-btn active" data-ctab="normal">🔓 Normal Closure</button>' +
+            '<button class="tab-btn" data-ctab="death">⚰️ Death Claim</button>' +
+          '</div>' +
+
+          '<div id="ct-normal">' +
+          active.map(function (a) {
+            return '<div style="margin-bottom:.8rem;">' +
+              '<h4>Locker ' + e(a.locker && a.locker.lockerNumber) + '</h4>' +
+              '<form id="nclose-' + e(a.id) + '" data-aid="' + e(a.id) + '" class="inline-form">' +
+                '<div class="field"><label>Reason</label><input class="form-input" name="reason" required placeholder="e.g. No longer needed / Lost key"></div>' +
+                '<div class="field" style="flex:none;align-self:flex-end;"><button class="btn btn-danger" type="submit">Request Closure</button></div>' +
+              '</form></div>';
+          }).join('') + '</div>' +
+
+          '<div id="ct-death" style="display:none;">' +
+          active.map(function (a) {
+            return '<div style="margin-bottom:.8rem;">' +
+              '<h4>Locker ' + e(a.locker && a.locker.lockerNumber) + '</h4>' +
+              '<p class="sc-sub">RBI para 5.2.4: Bank must settle death claims within <strong>15 days</strong> of proof of death.</p>' +
+              '<form id="dclose-' + e(a.id) + '" data-aid="' + e(a.id) + '" class="inline-form" style="flex-wrap:wrap;">' +
+                '<div class="field"><label>Death Certificate URL *</label><input class="form-input" name="deathCertificateUrl" type="url" required placeholder="https://..."></div>' +
+                '<div class="field"><label>Claimant Name & Relation</label><input class="form-input" name="claimantDetails" required placeholder="e.g. Jane Smith, Spouse"></div>' +
+                '<div class="field" style="flex:none;align-self:flex-end;"><button class="btn btn-danger" type="submit">File Death Claim</button></div>' +
+              '</form></div>';
+          }).join('') + '</div>' +
+        '</div>';
+      }
+
+      document.getElementById('data').innerHTML = html;
+
+      // Wire tab switching
+      document.querySelectorAll('[data-ctab]').forEach(function (btn) {
+        btn.onclick = function () {
+          document.querySelectorAll('[data-ctab]').forEach(function (b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          document.getElementById('ct-normal').style.display = btn.dataset.ctab === 'normal' ? '' : 'none';
+          document.getElementById('ct-death').style.display  = btn.dataset.ctab === 'death' ? '' : 'none';
+        };
+      });
+
+      // Wire normal closure forms
+      active.forEach(function (a) {
+        var nf = document.getElementById('nclose-' + a.id);
+        if (nf) nf.onsubmit = async function (ev) {
+          ev.preventDefault();
+          if (!confirm('Confirm normal closure for Locker ' + (a.locker && a.locker.lockerNumber) + '?')) return;
+          try { await api.post('/api/closure/' + a.id + '/normal', Object.fromEntries(new FormData(nf))); customerClosure(); shell.message('Closure requested!', 'success'); }
+          catch (err) { shell.message(err.message, 'error'); }
+        };
+        var df = document.getElementById('dclose-' + a.id);
+        if (df) df.onsubmit = async function (ev) {
+          ev.preventDefault();
+          try { await api.post('/api/closure/' + a.id + '/death', Object.fromEntries(new FormData(df))); customerClosure(); shell.message('Death claim filed! Bank will process within 15 days (RBI 5.2.4).', 'success'); }
+          catch (err) { shell.message(err.message, 'error'); }
+        };
+      });
+    }).catch(showError('data'));
+
+    function closureStep(label, currentStatus, doneStatuses) {
+      var done = doneStatuses.includes(currentStatus);
+      var cur  = currentStatus === doneStatuses[0];
+      return '<div class="tl-step ' + (done ? 'done' : cur ? 'current' : '') + '"><div class="tl-dot"></div><div class="tl-label">' + label + '</div></div>';
+    }
+  }
+
+  /* ============================================================
+     EMPLOYEE — ALL NOMINEES VIEW
+     ============================================================ */
+  function employeeNominee() {
+    if (!guarded('EMPLOYEE')) return;
+    shell.layout(
+      '<div class="page-hd"><p class="kicker">NOMINATION RECORDS</p><h1>All Nominees</h1>' +
+      '<p>View all registered nominees across all active locker assignments.</p></div>' +
+      '<div class="tb-bar"><input class="tb-search" id="nom-s" placeholder="🔍 Search by name or assignment…"></div>' +
+      '<div id="data">' + loadingHtml() + '</div>',
+      'employee-nominee'
+    );
+
+    api.get('/api/locker-assignments/approved').then(function (appr) {
+      return api.get('/api/locker-assignments/pending').then(function (pend) {
+        // Get all paid assignments
+        return api.get('/api/locker-assignments/approved');
+      });
+    }).catch(function () { return []; });
+
+    // Load all paid assignments then get nominees for each
+    var allAssignments = [];
+    api.get('/api/locker-assignments/approved').catch(function () { return []; }).then(function (appr) {
+      allAssignments = appr || [];
+      if (!allAssignments.length) {
+        document.getElementById('data').innerHTML = '<div class="empty"><div class="empty-icon">📋</div><h3>No assignments found</h3></div>';
+        return;
+      }
+      Promise.all(allAssignments.map(function (a) {
+        return api.get('/api/nominees/employee/' + a.id).catch(function () { return []; }).then(function (noms) {
+          return { a: a, noms: noms || [] };
+        });
+      })).then(function (results) {
+        var all = [];
+        results.forEach(function (r) {
+          r.noms.forEach(function (n) {
+            all.push({ n: n, a: r.a });
+          });
+        });
+        if (!all.length) {
+          document.getElementById('data').innerHTML = '<div class="empty"><div class="empty-icon">📋</div><h3>No nominees registered yet</h3></div>';
+          return;
+        }
+        var rows = all.map(function (item) {
+          var n = item.n, a = item.a;
+          return '<tr class="nr" data-q="' + e((n.name + ' ' + (a.locker && a.locker.lockerNumber || '') + ' ' + (a.customer && a.customer.fullName || '')).toLowerCase()) + '">' +
+            '<td>' + e(n.name) + '</td><td>' + e(n.relationship) + '</td>' +
+            '<td>' + e(a.customer && a.customer.fullName) + '</td>' +
+            '<td>' + e(a.locker && a.locker.lockerNumber) + '</td>' +
+            '<td><span class="cbadge cbadge-blue">' + e(n.formType) + '</span></td>' +
+            '<td>' + (n.minor ? '👶 Yes' : '—') + '</td>' +
+            '<td>' + d(n.createdAt) + '</td></tr>';
+        }).join('');
+        document.getElementById('data').innerHTML =
+          '<div class="panel"><h2>Nominees <span class="cbadge cbadge-blue">' + all.length + '</span></h2>' +
+          '<div class="table-wrap"><table class="dt-table"><thead><tr><th>Nominee</th><th>Relation</th><th>Customer</th><th>Locker</th><th>Form</th><th>Minor</th><th>Registered</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+        document.getElementById('nom-s').oninput = function () {
+          var q = this.value.toLowerCase();
+          document.querySelectorAll('.nr').forEach(function (r) { r.style.display = r.dataset.q.includes(q) ? '' : 'none'; });
+        };
+      });
+    }).catch(showError('data'));
+  }
+
+  /* ============================================================
+     EMPLOYEE — AGREEMENTS MANAGEMENT
+     ============================================================ */
+  function employeeAgreements() {
+    if (!guarded('EMPLOYEE')) return;
+    shell.layout(
+      '<div class="page-hd"><p class="kicker">RBI PARA 2.1</p><h1>Locker Agreements</h1>' +
+      '<p>Generate, view, and renew Board-approved locker agreements. Renewal due by Jan 1, 2023 (RBI 2.1.1).</p></div>' +
+      '<div id="data">' + loadingHtml() + '</div>',
+      'employee-agreements'
+    );
+
+    api.get('/api/locker-assignments/approved').catch(function () { return []; }).then(function (list) {
+      if (!list || !list.length) {
+        document.getElementById('data').innerHTML = '<div class="empty"><div class="empty-icon">📄</div><h3>No approved assignments</h3></div>';
+        return;
+      }
+      Promise.all(list.map(function (a) {
+        return api.get('/api/agreements/' + a.id).catch(function () { return null; }).then(function (ag) {
+          return { a: a, ag: ag };
+        });
+      })).then(function (results) {
+        var rows = results.map(function (r) {
+          var a = r.a, ag = r.ag;
+          return '<tr><td>' + e(a.customer && a.customer.fullName) + '</td>' +
+            '<td>' + e(a.locker && a.locker.lockerNumber) + '</td>' +
+            '<td>' + (ag ? '<span class="cbadge cbadge-green">Generated</span>' : '<span class="cbadge cbadge-amber">None</span>') + '</td>' +
+            '<td>' + (ag && ag.signedByCustomer ? '<span class="cbadge cbadge-green">✅ Signed</span>' : '<span class="cbadge cbadge-amber">Pending</span>') + '</td>' +
+            '<td>' + (ag ? d(ag.renewalDue) : '—') + '</td>' +
+            '<td>' +
+              (!ag ? '<button class="btn btn-sm btn-primary" data-gen="' + e(a.id) + '">Generate</button> ' : '') +
+              (ag ? '<button class="btn btn-sm btn-ghost" data-renew="' + e(a.id) + '">Renew</button>' : '') +
+            '</td></tr>';
+        }).join('');
+        document.getElementById('data').innerHTML =
+          '<div class="panel"><h2>Agreements</h2>' +
+          '<div class="table-wrap"><table class="dt-table"><thead><tr><th>Customer</th><th>Locker</th><th>Status</th><th>Customer Signed</th><th>Renewal Due</th><th>Action</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+
+        document.querySelectorAll('[data-gen]').forEach(function (btn) {
+          btn.onclick = async function () {
+            try { await api.post('/api/agreements/' + btn.dataset.gen, {}); employeeAgreements(); shell.message('Agreement generated!', 'success'); }
+            catch (err) { shell.message(err.message, 'error'); }
+          };
+        });
+        document.querySelectorAll('[data-renew]').forEach(function (btn) {
+          btn.onclick = async function () {
+            try { await api.post('/api/agreements/' + btn.dataset.renew + '/renew', {}); employeeAgreements(); shell.message('Agreement renewed!', 'success'); }
+            catch (err) { shell.message(err.message, 'error'); }
+          };
+        });
+      });
+    }).catch(showError('data'));
+  }
+
+  /* ============================================================
+     EMPLOYEE — RENT DUES DASHBOARD
+     ============================================================ */
+  function employeeRentDues() {
+    if (!guarded('EMPLOYEE')) return;
+    shell.layout(
+      '<div class="page-hd"><p class="kicker">RBI PARA 6.3</p><h1>Rent Dues Tracker</h1>' +
+      '<p>Monitor overdue rent payments. Force closure initiation after 3 consecutive unpaid years (RBI 6.3.1).</p></div>' +
+      '<div id="data">' + loadingHtml() + '</div>',
+      'employee-rent-dues'
+    );
+
+    api.get('/api/rent/overdue').catch(function () { return []; }).then(function (overdue) {
+      overdue = overdue || [];
+      var critical = overdue.filter(function (a) { return (a.consecutiveUnpaidYears || 0) >= 3; });
+      var warning  = overdue.filter(function (a) { return (a.consecutiveUnpaidYears || 0) > 0 && (a.consecutiveUnpaidYears || 0) < 3; });
+
+      document.getElementById('data').innerHTML =
+        '<div class="stat-grid">' +
+          '<div class="stat-card ac-red"><div class="sc-label">🚨 Closure Eligible (3+ yrs)</div><div class="sc-value">' + critical.length + '</div></div>' +
+          '<div class="stat-card ac-amber"><div class="sc-label">⚠️ Overdue (1-2 yrs)</div><div class="sc-value">' + warning.length + '</div></div>' +
+          '<div class="stat-card ac-blue"><div class="sc-label">📊 Total Overdue</div><div class="sc-value">' + overdue.length + '</div></div>' +
+        '</div>' +
+        '<div class="charts-row" style="margin:1rem 0;">' +
+          '<div class="chart-card"><h3>Unpaid Years Distribution</h3><div class="chart-box"><canvas id="rent-bar"></canvas></div></div>' +
+        '</div>' +
+        '<div class="panel" style="margin-top:1rem;">' +
+          '<h2>Overdue Rent List</h2>' +
+          (!overdue.length ? '<div class="empty"><div class="empty-icon">✅</div><h3>No overdue rents!</h3></div>' :
+            '<div class="table-wrap"><table class="dt-table"><thead><tr><th>Customer</th><th>Locker</th><th>Unpaid Years</th><th>Next Due</th><th>Action</th></tr></thead><tbody>' +
+            overdue.map(function (a) {
+              var yrs = a.consecutiveUnpaidYears || 0;
+              return '<tr><td>' + e(a.customer && a.customer.fullName) + '</td>' +
+                '<td>' + e(a.locker && a.locker.lockerNumber) + '</td>' +
+                '<td><span class="cbadge ' + (yrs >= 3 ? 'cbadge-red' : 'cbadge-amber') + '">' + yrs + ' year(s)</span></td>' +
+                '<td>' + (a.nextRentDueDate ? d(a.nextRentDueDate) : '—') + '</td>' +
+                '<td>' + (yrs >= 3 ? '<button class="btn btn-sm btn-danger" data-force="' + e(a.id) + '">Force Close (RBI 6.3)</button>' : '—') + '</td></tr>';
+            }).join('') + '</tbody></table></div>') +
+        '</div>';
+
+      // Render chart
+      var yrCounts = [0, 0, 0, 0];
+      overdue.forEach(function (a) {
+        var y = Math.min(3, a.consecutiveUnpaidYears || 0);
+        yrCounts[y]++;
+      });
+      var d0 = cd();
+      rc('rent-bar', {
+        type: 'bar',
+        data: {
+          labels: ['0 years', '1 year', '2 years', '3+ years'],
+          datasets: [{ label: 'Lockers', data: yrCounts,
+            backgroundColor: ['rgba(34,197,94,.7)','rgba(245,158,11,.7)','rgba(239,68,68,.6)','rgba(239,68,68,.9)'],
+            borderRadius: 6, borderSkipped: false }]
+        },
+        options: Object.assign({ responsive: true, maintainAspectRatio: false,
+          scales: { x: { ticks: { color: d0.textColor }, grid: { color: d0.gridColor } },
+                    y: { ticks: { color: d0.textColor, stepSize: 1 }, grid: { color: d0.gridColor }, beginAtZero: true } }
+        }, tp())
+      });
+
+      // Wire force-close buttons
+      document.querySelectorAll('[data-force]').forEach(function (btn) {
+        btn.onclick = async function () {
+          if (!confirm('Initiate non-payment closure for this locker? (RBI 6.3.1 — 3+ unpaid years)')) return;
+          try { await api.post('/api/closure/' + btn.dataset.force + '/non-payment', {}); employeeRentDues(); shell.message('Non-payment closure initiated. Notice period started.', 'success'); }
+          catch (err) { shell.message(err.message, 'error'); }
+        };
+      });
+    }).catch(showError('data'));
+  }
+
+  /* ============================================================
+     EMPLOYEE — LOCKER CLOSURES MANAGEMENT
+     ============================================================ */
+  function employeeClosures() {
+    if (!guarded('EMPLOYEE')) return;
+    shell.layout(
+      '<div class="page-hd"><p class="kicker">RBI PART VI</p><h1>Locker Closures</h1>' +
+      '<p>Review, process, and complete locker closure requests. All types: Normal, Death, Non-Payment, Law Enforcement.</p></div>' +
+      '<div id="data">' + loadingHtml() + '</div>',
+      'employee-closures'
+    );
+
+    api.get('/api/closure/all').catch(function () { return []; }).then(function (all) {
+      all = all || [];
+      var byType = {};
+      all.forEach(function (c) {
+        var t = c.closureType || 'OTHER';
+        if (!byType[t]) byType[t] = [];
+        byType[t].push(c);
+      });
+
+      var pending   = all.filter(function (c) { return c.status !== 'COMPLETED'; });
+      var completed = all.filter(function (c) { return c.status === 'COMPLETED'; });
+
+      document.getElementById('data').innerHTML =
+        '<div class="stat-grid">' +
+          '<div class="stat-card ac-amber"><div class="sc-label">⏳ Pending</div><div class="sc-value">' + pending.length + '</div></div>' +
+          '<div class="stat-card ac-green"><div class="sc-label">✅ Completed</div><div class="sc-value">' + completed.length + '</div></div>' +
+          '<div class="stat-card ac-blue"><div class="sc-label">📊 Total</div><div class="sc-value">' + all.length + '</div></div>' +
+        '</div>' +
+        '<div class="charts-row" style="margin:1rem 0;">' +
+          '<div class="chart-card"><h3>Closure Types</h3><div class="chart-box"><canvas id="cl-donut"></canvas></div></div>' +
+          '<div class="chart-card"><h3>Status Overview</h3><div class="chart-box"><canvas id="cl-bar"></canvas></div></div>' +
+        '</div>' +
+        '<div class="panel" style="margin-top:1rem;">' +
+          '<h2>Pending Closures</h2>' +
+          (!pending.length ? '<div class="empty"><div class="empty-icon">✅</div><h3>No pending closures</h3></div>' :
+            pending.map(function (c) {
+              var a = c.assignment || {};
+              return '<div class="kyc-rec" style="margin-bottom:.8rem;">' +
+                '<div>' +
+                  '<h4>' + b(c.closureType) + ' — Locker ' + e((a.locker && a.locker.lockerNumber) || '—') + '</h4>' +
+                  '<p style="font-size:.82rem;color:var(--ink2);">Customer: ' + e((a.customer && a.customer.fullName) || '—') +
+                    ' · Status: ' + b(c.status) + ' · Requested: ' + d(c.requestedAt) + '</p>' +
+                  (c.noticeDueDate ? '<p style="font-size:.8rem;color:var(--ink2);">Notice Due: ' + d(c.noticeDueDate) + '</p>' : '') +
+                '</div>' +
+                '<form data-close-id="' + e(c.id) + '" class="close-form inline-form" style="flex-wrap:wrap;">' +
+                  '<div class="field" style="flex:1 0 100%"><label>Inventory Details *</label><textarea class="form-input" name="inventoryDetails" rows="2" required placeholder="List all items found in locker…"></textarea></div>' +
+                  '<div class="field"><label>Witness 1</label><input class="form-input" name="witness1Name" required placeholder="First witness name"></div>' +
+                  '<div class="field"><label>Witness 2</label><input class="form-input" name="witness2Name" required placeholder="Second witness name"></div>' +
+                  '<div class="field"><label>Video URL</label><input class="form-input" name="videoUrl" type="url" placeholder="https://... (RBI 6.3.2)"></div>' +
+                  (c.closureType === 'NON_PAYMENT' ? '<div class="field" style="flex:1 0 100%"><label>Newspaper Notice Details</label><input class="form-input" name="newspaperNoticeDetails" placeholder="Two newspaper dailies (RBI 6.3.2)"></div>' : '') +
+                  '<div class="field" style="flex:none;align-self:flex-end;"><button class="btn btn-primary" type="submit">✅ Complete Closure</button></div>' +
+                '</form></div>';
+            }).join('')) +
+        '</div>';
+
+      // Charts
+      var types = ['NORMAL','DEATH','NON_PAYMENT','LAW_ENFORCEMENT','INOPERATIVE'];
+      var typeLabels = ['Normal','Death','Non-Payment','Law Enforcement','Inoperative'];
+      var d0 = cd();
+      rc('cl-donut', {
+        type: 'doughnut',
+        data: {
+          labels: typeLabels,
+          datasets: [{ data: types.map(function (t) { return (byType[t] || []).length || 0; }),
+            backgroundColor: ['rgba(34,197,94,.8)','rgba(239,68,68,.8)','rgba(245,158,11,.8)','rgba(168,85,247,.8)','rgba(59,130,246,.8)'],
+            borderWidth: 0, hoverOffset: 6 }]
+        },
+        options: Object.assign({ responsive: true, maintainAspectRatio: false, cutout: '60%' }, tp())
+      });
+      rc('cl-bar', {
+        type: 'bar',
+        data: {
+          labels: ['Requested','Notice','In Progress','Completed'],
+          datasets: [{ label: 'Count',
+            data: ['REQUESTED','NOTICE_ISSUED','IN_PROGRESS','COMPLETED'].map(function (s) {
+              return all.filter(function (c) { return c.status === s; }).length;
+            }),
+            backgroundColor: ['rgba(245,158,11,.7)','rgba(168,85,247,.7)','rgba(59,130,246,.7)','rgba(34,197,94,.7)'],
+            borderRadius: 6, borderSkipped: false }]
+        },
+        options: Object.assign({ responsive: true, maintainAspectRatio: false,
+          scales: { x: { ticks: { color: d0.textColor }, grid: { color: d0.gridColor } },
+                    y: { ticks: { color: d0.textColor, stepSize: 1 }, grid: { color: d0.gridColor }, beginAtZero: true } }
+        }, tp())
+      });
+
+      // Wire completion forms
+      document.querySelectorAll('.close-form').forEach(function (form) {
+        form.onsubmit = async function (ev) {
+          ev.preventDefault();
+          var dto = Object.fromEntries(new FormData(form));
+          try { await api.put('/api/closure/' + form.dataset.closeId + '/complete', dto); employeeClosures(); shell.message('Closure completed. Locker released back to available.', 'success'); }
+          catch (err) { shell.message(err.message, 'error'); }
+        };
+      });
+    }).catch(showError('data'));
+  }
+
+  /* ============================================================
+     CHATBOT — VAULTBOT (Grok AI)
+     ============================================================ */
+  function chatbot() {
+    if (!guarded('CUSTOMER') && !guarded('EMPLOYEE')) { utils.go('login'); return; }
+    shell.layout(
+      '<div class="page-hd"><p class="kicker">AI ASSISTANT</p><h1>VaultBot</h1>' +
+      '<p>Your intelligent locker assistant powered by Grok AI. Ask anything about lockers, RBI guidelines, nominations, rent, or closure.</p></div>' +
+      '<div class="chat-wrap">' +
+        '<div id="chat-messages" class="chat-messages">' +
+          '<div class="chat-msg assistant">' +
+            '<div class="chat-avatar">🤖</div>' +
+            '<div class="chat-bubble">👋 Hi! I\'m <strong>VaultBot</strong>, your locker assistant.<br><br>' +
+            'I can help with:<br>• 📋 Nominee registration (RBI Forms SL1/SL2/SL3)<br>• 🔒 Locker closure procedures<br>• 💳 Rent payment & overdue tracking<br>• 📄 Locker agreements<br>• ⚖️ Bank liability & compensation<br><br>What would you like to know?</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="chat-input-row">' +
+          '<div class="chat-suggestions">' +
+            '<button class="chat-pill" data-q="How do I add a nominee?">Add nominee</button>' +
+            '<button class="chat-pill" data-q="What happens if I don\'t pay rent for 3 years?">Non-payment</button>' +
+            '<button class="chat-pill" data-q="How do I close my locker?">Close locker</button>' +
+            '<button class="chat-pill" data-q="What is the bank\'s liability for theft?">Bank liability</button>' +
+          '</div>' +
+          '<div class="chat-form">' +
+            '<textarea id="chat-in" class="chat-textarea" placeholder="Ask VaultBot anything about your locker…" rows="1"></textarea>' +
+            '<button id="chat-send" class="btn btn-primary">Send ✈️</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>',
+      'chatbot'
+    );
+
+    var history = [];
+
+    function appendMsg(role, text) {
+      var msgs = document.getElementById('chat-messages');
+      if (!msgs) return;
+      var div = document.createElement('div');
+      div.className = 'chat-msg ' + role;
+      div.innerHTML = '<div class="chat-avatar">' + (role === 'user' ? '👤' : '🤖') + '</div>' +
+        '<div class="chat-bubble">' + (role === 'assistant' ? text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>') : e(text)) + '</div>';
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function sendMessage(msg) {
+      if (!msg || !msg.trim()) return;
+      appendMsg('user', msg);
+      history.push({ role: 'user', content: msg });
+      var inp = document.getElementById('chat-in');
+      if (inp) inp.value = '';
+      var sendBtn = document.getElementById('chat-send');
+      if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = '⏳'; }
+
+      // Typing indicator
+      var msgs = document.getElementById('chat-messages');
+      var typing = document.createElement('div');
+      typing.className = 'chat-msg assistant';
+      typing.id = 'typing-indicator';
+      typing.innerHTML = '<div class="chat-avatar">🤖</div><div class="chat-bubble"><span class="typing-dots"><span></span><span></span><span></span></span></div>';
+      if (msgs) msgs.appendChild(typing);
+      if (msgs) msgs.scrollTop = msgs.scrollHeight;
+
+      api.post('/api/chatbot/message', { message: msg, history: history.slice(-10) })
+        .then(function (res) {
+          var tyInd = document.getElementById('typing-indicator');
+          if (tyInd) tyInd.remove();
+          var reply = res.reply || 'Sorry, I could not process your request.';
+          appendMsg('assistant', reply);
+          history.push({ role: 'assistant', content: reply });
+        })
+        .catch(function (err) {
+          var tyInd = document.getElementById('typing-indicator');
+          if (tyInd) tyInd.remove();
+          appendMsg('assistant', '❌ Sorry, I encountered an error: ' + err.message);
+        })
+        .finally(function () {
+          var sb = document.getElementById('chat-send');
+          if (sb) { sb.disabled = false; sb.textContent = 'Send ✈️'; }
+        });
+    }
+
+    var sendBtn = document.getElementById('chat-send');
+    var inp = document.getElementById('chat-in');
+    if (sendBtn) sendBtn.onclick = function () { sendMessage(inp.value.trim()); };
+    if (inp) {
+      inp.onkeydown = function (ev) {
+        if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); sendMessage(inp.value.trim()); }
+      };
+      inp.oninput = function () { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 120) + 'px'; };
+    }
+    document.querySelectorAll('.chat-pill').forEach(function (pill) {
+      pill.onclick = function () { sendMessage(pill.dataset.q); };
+    });
+  }
+
   /* ── Exports ─────────────────────────────────────────────── */
   return {
     home: home, login: function () { auth(false); }, signup: function () { auth(true); },
     customerDashboard: customerDashboard, customerLockers: customerLockers,
     customerBookings: customerBookings, customerKyc: customerKyc,
     employeeDashboard: employeeDashboard, employeeLockers: employeeLockers,
-    employeeRequests: employeeRequests, employeeKyc: employeeKyc, employeeVisits: employeeVisits
+    employeeRequests: employeeRequests, employeeKyc: employeeKyc, employeeVisits: employeeVisits,
+    customerNominee: customerNominee, customerAgreement: customerAgreement,
+    customerRentPayment: customerRentPayment, customerClosure: customerClosure,
+    employeeNominee: employeeNominee, employeeAgreements: employeeAgreements,
+    employeeRentDues: employeeRentDues, employeeClosures: employeeClosures,
+    chatbot: chatbot
   };
 });

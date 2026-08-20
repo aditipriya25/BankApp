@@ -70,6 +70,32 @@ public class SecurityConfig {
                         // Employee can approve or reject a KYC document
                         .requestMatchers("/api/kyc/*/review").hasRole("EMPLOYEE")
 
+                        // ── Nominee Endpoints ────────────────────────────────────────────────────
+                        .requestMatchers(HttpMethod.GET,    "/api/nominees/employee/**").hasRole("EMPLOYEE")
+                        .requestMatchers("/api/nominees/**").hasAnyRole("CUSTOMER", "EMPLOYEE")
+
+                        // ── Agreement Endpoints ──────────────────────────────────────────────────
+                        .requestMatchers(HttpMethod.POST,   "/api/agreements/*/renew").hasRole("EMPLOYEE")
+                        .requestMatchers(HttpMethod.POST,   "/api/agreements/*").hasRole("EMPLOYEE")
+                        .requestMatchers(HttpMethod.POST,   "/api/agreements/*/sign").hasRole("CUSTOMER")
+                        .requestMatchers(HttpMethod.GET,    "/api/agreements/**").hasAnyRole("CUSTOMER", "EMPLOYEE")
+
+                        // ── Rent Payment Endpoints ───────────────────────────────────────────────
+                        .requestMatchers("/api/rent/overdue").hasRole("EMPLOYEE")
+                        .requestMatchers("/api/rent/**").hasAnyRole("CUSTOMER", "EMPLOYEE")
+
+                        // ── Locker Closure Endpoints ─────────────────────────────────────────────
+                        .requestMatchers(HttpMethod.GET,    "/api/closure/pending").hasRole("EMPLOYEE")
+                        .requestMatchers(HttpMethod.GET,    "/api/closure/all").hasRole("EMPLOYEE")
+                        .requestMatchers(HttpMethod.PUT,    "/api/closure/*/complete").hasRole("EMPLOYEE")
+                        .requestMatchers(HttpMethod.POST,   "/api/closure/*/non-payment").hasRole("EMPLOYEE")
+                        .requestMatchers(HttpMethod.POST,   "/api/closure/*/law-enforcement").hasRole("EMPLOYEE")
+                        .requestMatchers("/api/closure/**").hasAnyRole("CUSTOMER", "EMPLOYEE")
+
+                        // ── Chatbot Endpoint (public health, auth required for message) ───────────
+                        .requestMatchers("/api/chatbot/health").permitAll()
+                        .requestMatchers("/api/chatbot/**").authenticated()
+
                         .anyRequest().authenticated())
 
                 .addFilterBefore(
