@@ -698,7 +698,10 @@ html {
   font-weight: 900; line-height: 1.06;
   letter-spacing: -.055em; color: #f5f3ff; margin-bottom: 1.1rem;
 }
-.hero h1 span { color: #e9d5ff; }
+[data-theme="dark"] .hero h1 span {
+  color: #ffffff;
+}
+
 .hero-sub { font-size: 1rem; color: #c4b5fd; line-height: 1.75; max-width: 500px; margin-bottom: 1.8rem; }
 .hero-actions { display: flex; gap: .8rem; flex-wrap: wrap; }
 
@@ -719,8 +722,8 @@ html {
   background: radial-gradient(circle at 50% 30%, rgba(59,130,246,.07), transparent 70%);
 }
 .vault-icon { font-size: 3.5rem; line-height: 1; }
-.vault-card strong { font-size: 1rem; color: #d6e4fa; font-weight: 700; }
-.vault-card small  { font-size: .8rem; color: #5a7898; }
+.vault-card strong { font-size: 1rem; color: #ffffff; font-weight: 700; }
+.vault-card small  { font-size: .8rem; color: #ffffff; }
 
 /* Features */
 .features-sec { max-width: 1200px; margin: 0 auto; padding: 4.5rem 1.5rem; }
@@ -756,8 +759,8 @@ html {
 [data-theme="light"] .auth-wrap {
   background: linear-gradient(128deg, #091a34 0%, #091a34 50%, var(--bg) 50%);
 }
-.auth-copy { color: #e5eeff; }
-.auth-copy .hero-kicker { color: var(--brand); margin-bottom: .75rem; font-size: .63rem; font-weight: 800; letter-spacing: .17em; text-transform: uppercase; }
+.auth-copy { color: #ffffff; }
+.auth-copy .hero-kicker { color: #ffffff; margin-bottom: .75rem; font-size: .63rem; font-weight: 800; letter-spacing: .17em; text-transform: uppercase; }
 .auth-copy h1 { font-size: clamp(1.9rem, 3.5vw, 2.9rem); font-weight: 900; line-height: 1.08; letter-spacing: -.05em; margin-bottom: .7rem; }
 .auth-copy p  { font-size: .9rem; color: #7090b8; line-height: 1.7; }
 .auth-panel {
@@ -849,4 +852,31 @@ html {
   .tab-bar    { gap: 0; }
   .req-row    { flex-direction: column; align-items: flex-start; }
   .inline-form { flex-direction: column; align-items: stretch; }
+}
+[data-theme="dark"] .auth-copy h1 {
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .auth-copy p {
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .auth-copy .hero-kicker {
+  color: #ffffff !important;
+}
+
+/* Login page — white text in BOTH light and dark modes */
+.auth-copy h1 {
+  color: #ffffff !important;
+}
+
+.auth-copy p {
+  color: #ffffff !important;
+}
+
+.auth-copy .hero-kicker {
+  color: #ffffff !important;
+}
+[data-theme="dark"] .feat-icon {
+  color: #ffffff !important;
 }
