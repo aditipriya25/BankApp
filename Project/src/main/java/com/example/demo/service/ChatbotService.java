@@ -9,10 +9,11 @@ import org.springframework.web.client.RestTemplate;
 import java.util.*;
 
 /**
- * Chatbot service powered by Grok (xAI) API.
- * Endpoint: https://api.x.ai/v1/chat/completions
- * Model: grok-3-mini (fast, cost-effective)
+ * Chatbot service powered by Groq API (ultra-fast LLM inference).
+ * Endpoint: https://api.groq.com/openai/v1/chat/completions
+ * Model: llama-3.3-70b-versatile (fast, free tier available)
  *
+ * Groq uses the OpenAI-compatible API format so the request body is identical.
  * The chatbot is specialized as a VaultBank locker assistant that:
  *  - Answers questions about RBI locker guidelines
  *  - Helps customers understand nomination, closure, rent procedures
@@ -24,10 +25,10 @@ public class ChatbotService {
     @Value("${grok.api.key:}")
     private String grokApiKey;
 
-    @Value("${grok.api.url:https://api.x.ai/v1/chat/completions}")
+    @Value("${grok.api.url:https://api.groq.com/openai/v1/chat/completions}")
     private String grokApiUrl;
 
-    @Value("${grok.model:grok-3-mini}")
+    @Value("${grok.model:llama-3.3-70b-versatile}")
     private String grokModel;
 
     private static final String SYSTEM_PROMPT =
@@ -45,8 +46,8 @@ public class ChatbotService {
     private final RestTemplate restTemplate = new RestTemplate();
 
     /**
-     * Send a message to Grok API and get a response.
-     * Falls back to a helpful canned response if the API key is not configured.
+     * Send a message to Groq API and get a response.
+     * Falls back to a helpful rule-based response if the API key is not configured or call fails.
      */
     public Map<String, Object> chat(ChatMessageDto request) {
         if (grokApiKey == null || grokApiKey.isBlank()) {
@@ -78,7 +79,7 @@ public class ChatbotService {
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("model", grokModel);
             body.put("messages", messages);
-            body.put("max_tokens", 512);
+            body.put("max_tokens", 1024);
             body.put("temperature", 0.7);
 
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
