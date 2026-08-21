@@ -169,13 +169,40 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
         return;
       }
 
-      /* Build status cards for each assignment — no payment form here (use Pay Rent page) */
+      /* Build status cards for each assignment */
       var cards = list.map(function (a) {
         var acReq = a.requestStatus === 'APPROVED' ? 'ac-green' : a.requestStatus === 'PAID' ? 'ac-blue' : 'ac-amber';
         var acPay = a.paymentStatus === 'PAID' ? 'ac-green' : 'ac-amber';
-        var payBtn = (a.requestStatus === 'PAID')
-          ? '<a class="btn btn-sm btn-primary" href="#/customer-rent" style="margin-top:.8rem;display:inline-block;">💳 Pay Annual Rent</a>'
-          : '';
+
+        /* -- Action panel based on status -- */
+        var actionHtml = '';
+        if (a.requestStatus === 'APPROVED') {
+          // First activation payment — uses /api/locker-assignments/{id}/pay
+          actionHtml =
+            '<div class="notice info" style="margin-top:.8rem;">'
+            + '✅ Your locker has been <strong>approved</strong>! Please make the activation payment to activate it.'
+            + '</div>'
+            + '<form id="act-' + e(a.id) + '" class="inline-form" style="margin-top:.6rem;" data-aid="' + e(a.id) + '">'
+            +   '<div class="field"><label>Payment method</label>'
+            +     '<select class="form-select" name="paymentMethod">'
+            +       '<option value="ONLINE">Online</option>'
+            +       '<option value="OFFLINE">Offline (at branch)</option>'
+            +     '</select>'
+            +   '</div>'
+            +   '<div class="field" style="flex:none;align-self:flex-end;">'
+            +     '<button class="btn btn-primary" type="submit">💳 Make Activation Payment</button>'
+            +   '</div>'
+            + '</form>';
+        } else if (a.requestStatus === 'PAID') {
+          actionHtml =
+            '<div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.8rem;">'
+            + '<a class="btn btn-sm btn-primary" href="#/customer-rent">💳 Pay Annual Rent</a>'
+            + '<a class="btn btn-sm btn-outline" href="#/customer-agreement">📄 View Agreement</a>'
+            + '</div>';
+        } else if (a.requestStatus === 'PENDING') {
+          actionHtml = '<div class="notice info" style="margin-top:.8rem;">⏳ Your request is pending employee review.</div>';
+        }
+
         return '<div class="panel" style="margin-bottom:1rem;">'
           + '<h3 style="margin-bottom:.8rem;">🔐 Locker ' + e(a.locker && a.locker.lockerNumber) +
             ' <span style="font-size:.82rem;font-weight:400;color:var(--ink2);">' + e(a.locker && a.locker.size) + ' · ₹' + (a.locker && a.locker.price ? Number(a.locker.price).toLocaleString('en-IN') : 'N/A') + '/year</span></h3>'
@@ -190,13 +217,32 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
               + '<div class="sc-sub" style="margin-top:.4rem;">' + (a.nextRentDueDate ? 'Next due: ' + d(a.nextRentDueDate) : '') + '</div>'
             + '</div>'
           + '</div>'
-          + payBtn
+          + actionHtml
           + '</div>';
       }).join('');
 
       document.getElementById('data').innerHTML =
         cards +
         '<a class="btn btn-outline" href="#/customer-lockers" style="display:inline-block;margin-top:.5rem;">+ Request another locker</a>';
+
+      /* Wire activation payment forms (APPROVED → PAID) */
+      list.filter(function (a) { return a.requestStatus === 'APPROVED'; }).forEach(function (a) {
+        var form = document.getElementById('act-' + a.id);
+        if (!form) return;
+        form.onsubmit = async function (ev) {
+          ev.preventDefault();
+          var btn = form.querySelector('button[type="submit"]');
+          if (btn) { btn.disabled = true; btn.textContent = '⏳ Processing…'; }
+          try {
+            await api.post('/api/locker-assignments/' + a.id + '/pay', Object.fromEntries(new FormData(form)));
+            shell.message('✅ Activation payment successful! Your locker is now active.', 'success');
+            customerDashboard();
+          } catch (err) {
+            if (btn) { btn.disabled = false; btn.textContent = '💳 Make Activation Payment'; }
+            shell.message(err.message, 'error');
+          }
+        };
+      });
 
     }).catch(showError('data'));
   }
@@ -848,14 +894,19 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
     );
 
     api.get('/api/locker-assignments/my-assignments').then(function (list) {
-      var paid = (list || []).filter(function (a) { return a.requestStatus === 'PAID'; });
-      if (!paid.length) {
+      // Show agreement for APPROVED (employee generated it) AND PAID (already activated)
+      var eligible = (list || []).filter(function (a) {
+        return a.requestStatus === 'APPROVED' || a.requestStatus === 'PAID';
+      });
+      if (!eligible.length) {
         document.getElementById('data').innerHTML =
-          '<div class="empty"><div class="empty-icon">📄</div><h3>No active lockers</h3><a class="btn btn-primary" href="#/customer-dashboard">Go to Dashboard</a></div>';
+          '<div class="empty"><div class="empty-icon">📄</div><h3>No approved lockers yet</h3>' +
+          '<p>Once your locker request is approved by an employee, your agreement will appear here.</p>' +
+          '<a class="btn btn-primary" href="#/customer-dashboard">Go to Dashboard</a></div>';
         return;
       }
 
-      Promise.all(paid.map(function (a) {
+      Promise.all(eligible.map(function (a) {
         return api.get('/api/agreements/' + a.id).catch(function () { return null; }).then(function (ag) {
           return { a: a, ag: ag };
         });
@@ -914,13 +965,16 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
     );
 
     api.get('/api/locker-assignments/my-assignments').then(function (list) {
-      var paid = (list || []).filter(function (a) { return a.requestStatus === 'PAID'; });
-      if (!paid.length) {
-        document.getElementById('data').innerHTML = '<div class="empty"><div class="empty-icon">💳</div><h3>No active lockers</h3><a class="btn btn-primary" href="#/customer-dashboard">Dashboard</a></div>';
+      // Show rent payment for APPROVED (first year) AND PAID (subsequent years)
+      var eligible = (list || []).filter(function (a) {
+        return a.requestStatus === 'APPROVED' || a.requestStatus === 'PAID';
+      });
+      if (!eligible.length) {
+        document.getElementById('data').innerHTML = '<div class="empty"><div class="empty-icon">💳</div><h3>No approved lockers</h3><p>Your locker request must be approved before you can pay rent.</p><a class="btn btn-primary" href="#/customer-dashboard">Dashboard</a></div>';
         return;
       }
 
-      var html = paid.map(function (a, idx) {
+      var html = eligible.map(function (a, idx) {
         var aid = e(a.id), ln = e(a.locker && a.locker.lockerNumber);
         var annualRent = a.locker && a.locker.price ? parseFloat(a.locker.price).toLocaleString('en-IN') : 'N/A';
         var rentDue = a.nextRentDueDate ? d(a.nextRentDueDate) : 'Not set';
