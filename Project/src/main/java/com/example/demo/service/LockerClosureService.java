@@ -9,17 +9,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Service for locker closure scenarios per RBI Part VI.
  *
- * Scenarios implemented:
- *  NORMAL       — RBI 6.1: Customer requests closure (key lost / voluntary surrender)
- *  DEATH        — RBI 5.2 & 5.3: Settlement of claims on death of locker hirer (≤15 days)
- *  NON_PAYMENT  — RBI 6.3: Bank-initiated after 3 consecutive unpaid years
- *  INOPERATIVE  — RBI 6.4: Locker unused for 7 years (even if rent paid)
- *  LAW_ENFORCEMENT — RBI 6.2: Court/authority attachment order
+ * Workflow for NORMAL / DEATH closures:
+ *   1. Customer requests closure → status = REQUESTED
+ *   2. Employee APPROVES or REJECTS
+ *      - APPROVED → locker immediately set to AVAILABLE, assignment = CLOSED
+ *      - REJECTED → closure deleted, assignment back to normal
+ *
+ * NON_PAYMENT / LAW_ENFORCEMENT closures are employee-initiated and go directly to completion.
  */
 @Service
 public class LockerClosureService {
@@ -28,20 +28,25 @@ public class LockerClosureService {
     private final LockerAssignmentRepository assignmentRepository;
     private final EmployeeRepository employeeRepository;
     private final LockerRepository lockerRepository;
+    private final NotificationService notificationService;
 
     public LockerClosureService(LockerClosureRepository closureRepository,
                                 LockerAssignmentRepository assignmentRepository,
                                 EmployeeRepository employeeRepository,
-                                LockerRepository lockerRepository) {
-        this.closureRepository = closureRepository;
+                                LockerRepository lockerRepository,
+                                NotificationService notificationService) {
+        this.closureRepository   = closureRepository;
         this.assignmentRepository = assignmentRepository;
-        this.employeeRepository = employeeRepository;
-        this.lockerRepository = lockerRepository;
+        this.employeeRepository  = employeeRepository;
+        this.lockerRepository    = lockerRepository;
+        this.notificationService = notificationService;
     }
+
+    // ── Customer-initiated closures ───────────────────────────────────────────
 
     /**
      * Normal closure — customer initiates (RBI 6.1: key lost / voluntary surrender).
-     * Customer pays all charges; locker is returned.
+     * Stays REQUESTED until employee approves.
      */
     @Transactional
     public LockerClosure requestNormalClosure(String assignmentId, String customerEmail, LockerClosureDto dto) {
@@ -50,39 +55,47 @@ public class LockerClosureService {
         if (!assignment.getCustomer().getEmail().equals(customerEmail)) {
             throw new RuntimeException("Access denied");
         }
-
         ensureNoPendingClosure(assignmentId);
 
         LockerClosure closure = buildClosure(assignment, "NORMAL", dto);
-        // RBI 6.1.1: Customer must give written authorization
         closure.setStatus("REQUESTED");
-        closure.setNoticeDueDate(LocalDateTime.now().plusDays(7)); // 7 days for bank to process
+        closure.setNoticeDueDate(LocalDateTime.now().plusDays(7));
 
-        // Update assignment status
         assignment.setClosureType("NORMAL");
         assignment.setClosureStatus("REQUESTED");
         assignment.setClosureRequestedAt(LocalDateTime.now());
         assignmentRepository.save(assignment);
 
-        return closureRepository.save(closure);
+        LockerClosure saved = closureRepository.save(closure);
+
+        // Notify customer
+        notificationService.createNotification(
+                customerEmail, "CUSTOMER",
+                "Closure Request Submitted",
+                "Your locker closure request for Locker " +
+                        assignment.getLocker().getLockerNumber() + " has been submitted. Awaiting employee approval.",
+                "CLOSURE_REQUESTED"
+        );
+
+        return saved;
     }
 
     /**
-     * Death closure — nominee/survivor claims contents (RBI 5.2.4: must settle within 15 days).
+     * Death closure — nominee/customer files (RBI 5.2/5.3).
+     * Stays REQUESTED until employee approves.
      */
     @Transactional
-    public LockerClosure requestDeathClosure(String assignmentId, String nomineeOrEmployeeEmail, LockerClosureDto dto) {
+    public LockerClosure requestDeathClosure(String assignmentId, String requesterEmail, LockerClosureDto dto) {
         LockerAssignment assignment = assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new RuntimeException("Assignment not found"));
 
         if (dto.getDeathCertificateUrl() == null || dto.getDeathCertificateUrl().isBlank()) {
-            throw new RuntimeException("Death certificate URL is required for death closure (RBI para 5.2.3)");
+            throw new RuntimeException("Death certificate URL is required (RBI para 5.2.3)");
         }
-
         ensureNoPendingClosure(assignmentId);
 
         LockerClosure closure = buildClosure(assignment, "DEATH", dto);
-        // RBI 5.2.4: Banks shall settle claims within 15 days
+        closure.setStatus("REQUESTED");
         closure.setNoticeDueDate(LocalDateTime.now().plusDays(15));
         closure.setClaimantDetails(dto.getClaimantDetails());
         closure.setDeathCertificateUrl(dto.getDeathCertificateUrl());
@@ -95,21 +108,107 @@ public class LockerClosureService {
         return closureRepository.save(closure);
     }
 
+    // ── Employee approval / rejection of customer-initiated closures ──────────
+
     /**
-     * Non-payment closure — employee/system initiates after 3+ unpaid years (RBI 6.3.1).
-     * Bank must issue notice before breaking open.
+     * Employee approves a REQUESTED closure.
+     * Immediately sets locker to AVAILABLE and assignment to CLOSED.
+     * Notifies the customer.
      */
+    @Transactional
+    public LockerClosure approveClosure(String closureId, String employeeEmail) {
+        LockerClosure closure = closureRepository.findById(closureId)
+                .orElseThrow(() -> new RuntimeException("Closure record not found"));
+
+        if (!"REQUESTED".equals(closure.getStatus())) {
+            throw new RuntimeException("Only REQUESTED closures can be approved");
+        }
+
+        Employee employee = employeeRepository.findByEmail(employeeEmail)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        closure.setStatus("COMPLETED");
+        closure.setProcessedByEmployee(employee);
+        closure.setCompletedAt(LocalDateTime.now());
+
+        LockerAssignment assignment = closure.getAssignment();
+        assignment.setClosureStatus("COMPLETED");
+        assignment.setClosureCompletedAt(LocalDateTime.now());
+        assignment.setRequestStatus("CLOSED");
+        assignmentRepository.save(assignment);
+
+        // Release the locker — immediately AVAILABLE
+        Locker locker = assignment.getLocker();
+        locker.setStatus("AVAILABLE");
+        lockerRepository.save(locker);
+
+        LockerClosure saved = closureRepository.save(closure);
+
+        // Notify customer
+        notificationService.createNotification(
+                assignment.getCustomer().getEmail(), "CUSTOMER",
+                "Locker Closure Approved",
+                "Your closure request for Locker " + locker.getLockerNumber() +
+                        " has been approved. The locker is now closed and your account has been updated.",
+                "CLOSURE_APPROVED"
+        );
+
+        return saved;
+    }
+
+    /**
+     * Employee rejects a REQUESTED closure.
+     * Reverts the assignment closure status. Notifies the customer.
+     */
+    @Transactional
+    public LockerClosure rejectClosure(String closureId, String employeeEmail, String reason) {
+        LockerClosure closure = closureRepository.findById(closureId)
+                .orElseThrow(() -> new RuntimeException("Closure record not found"));
+
+        if (!"REQUESTED".equals(closure.getStatus())) {
+            throw new RuntimeException("Only REQUESTED closures can be rejected");
+        }
+
+        Employee employee = employeeRepository.findByEmail(employeeEmail)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        closure.setStatus("REJECTED");
+        closure.setProcessedByEmployee(employee);
+        closure.setReason(reason != null ? reason : closure.getReason());
+
+        LockerAssignment assignment = closure.getAssignment();
+        assignment.setClosureStatus("NONE");
+        assignment.setClosureType(null);
+        assignmentRepository.save(assignment);
+
+        LockerClosure saved = closureRepository.save(closure);
+
+        // Notify customer
+        notificationService.createNotification(
+                assignment.getCustomer().getEmail(), "CUSTOMER",
+                "Locker Closure Rejected",
+                "Your closure request for Locker " + assignment.getLocker().getLockerNumber() +
+                        " has been rejected. Reason: " + (reason != null ? reason : "No reason provided") +
+                        ". Please contact your branch for further assistance.",
+                "CLOSURE_REJECTED"
+        );
+
+        return saved;
+    }
+
+    // ── Employee-initiated closures ───────────────────────────────────────────
+
+    /** Non-payment closure — employee/system initiates after 3+ unpaid years (RBI 6.3.1). */
     @Transactional
     public LockerClosure initiateNonPaymentClosure(String assignmentId, String employeeEmail) {
         LockerAssignment assignment = getActiveAssignment(assignmentId);
 
         if (assignment.getConsecutiveUnpaidYears() < 3) {
             throw new RuntimeException(
-                "Non-payment closure requires at least 3 consecutive unpaid years per RBI para 6.3.1. " +
-                "Current unpaid years: " + assignment.getConsecutiveUnpaidYears()
+                "Non-payment closure requires at least 3 consecutive unpaid years (RBI 6.3.1). " +
+                "Current: " + assignment.getConsecutiveUnpaidYears()
             );
         }
-
         ensureNoPendingClosure(assignmentId);
 
         Employee employee = employeeRepository.findByEmail(employeeEmail)
@@ -121,21 +220,28 @@ public class LockerClosureService {
         closure.setStatus("NOTICE_ISSUED");
         closure.setProcessedByEmployee(employee);
         closure.setReason("Rent unpaid for " + assignment.getConsecutiveUnpaidYears() + " consecutive years");
-        // RBI 6.3.2: Give reasonable notice period before break-open
         closure.setNoticeIssuedAt(LocalDateTime.now());
-        closure.setNoticeDueDate(LocalDateTime.now().plusDays(30)); // 30 days notice
+        closure.setNoticeDueDate(LocalDateTime.now().plusDays(30));
 
         assignment.setClosureType("NON_PAYMENT");
         assignment.setClosureStatus("NOTICE_ISSUED");
         assignment.setClosureRequestedAt(LocalDateTime.now());
         assignmentRepository.save(assignment);
 
+        notificationService.createNotification(
+                assignment.getCustomer().getEmail(), "CUSTOMER",
+                "Forced Closure Notice",
+                "Your locker " + assignment.getLocker().getLockerNumber() +
+                        " has been issued a forced closure notice due to " +
+                        assignment.getConsecutiveUnpaidYears() + " years of unpaid rent (RBI 6.3.1). " +
+                        "Please clear dues within 30 days or the locker will be closed.",
+                "CLOSURE_REQUESTED"
+        );
+
         return closureRepository.save(closure);
     }
 
-    /**
-     * Law enforcement closure — court/authority order (RBI 6.2).
-     */
+    /** Law enforcement closure — court/authority order (RBI 6.2). */
     @Transactional
     public LockerClosure initiateLawEnforcementClosure(String assignmentId, String employeeEmail, LockerClosureDto dto) {
         LockerAssignment assignment = assignmentRepository.findById(assignmentId)
@@ -145,7 +251,7 @@ public class LockerClosureService {
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
         if (dto.getCourtOrderUrl() == null || dto.getCourtOrderUrl().isBlank()) {
-            throw new RuntimeException("Court order URL is required for law enforcement closure (RBI 6.2.1)");
+            throw new RuntimeException("Court order URL is required (RBI 6.2.1)");
         }
 
         LockerClosure closure = buildClosure(assignment, "LAW_ENFORCEMENT", dto);
@@ -160,8 +266,8 @@ public class LockerClosureService {
     }
 
     /**
-     * Complete closure procedure — employee finalizes (adds inventory, witnesses, video).
-     * RBI 6.3.2: Inventory prepared in presence of 2 independent witnesses + bank officer.
+     * Complete closure (NON_PAYMENT / LAW_ENFORCEMENT only) — employee finalizes with inventory, witnesses, video.
+     * NORMAL / DEATH closures are approved directly via approveClosure().
      */
     @Transactional
     public LockerClosure completeClosure(String closureId, String employeeEmail, LockerClosureDto dto) {
@@ -182,10 +288,9 @@ public class LockerClosureService {
             closure.setNewspaperNoticeDetails(dto.getNewspaperNoticeDetails());
         }
 
-        // Calculate RBI compensation if fire/theft/fraud type (7.2: 100× annual rent)
-        if ("COMPENSATION".equals(dto.getReason()) || "NON_PAYMENT".equals(closure.getClosureType())) {
-            BigDecimal annualRent = closure.getAssignment().getLocker().getPrice()
-                    .multiply(BigDecimal.valueOf(12));
+        // RBI 7.2 compensation if applicable
+        if ("NON_PAYMENT".equals(closure.getClosureType())) {
+            BigDecimal annualRent = closure.getAssignment().getLocker().getPrice();
             closure.setCompensationAmount(annualRent.multiply(BigDecimal.valueOf(100)));
         }
 
@@ -213,7 +318,6 @@ public class LockerClosureService {
                 .orElseThrow(() -> new RuntimeException("No closure record for this assignment"));
     }
 
-    /** All non-completed closures for employee review */
     public List<LockerClosure> getPendingClosures() {
         return closureRepository.findByStatusNot("COMPLETED");
     }
@@ -222,20 +326,20 @@ public class LockerClosureService {
         return closureRepository.findAll();
     }
 
-    // ─── Helpers ──────────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private LockerAssignment getActiveAssignment(String assignmentId) {
-        LockerAssignment assignment = assignmentRepository.findById(assignmentId)
+        LockerAssignment a = assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new RuntimeException("Assignment not found"));
-        if ("CLOSED".equals(assignment.getRequestStatus())) {
+        if ("CLOSED".equals(a.getRequestStatus())) {
             throw new RuntimeException("This locker assignment is already closed");
         }
-        return assignment;
+        return a;
     }
 
     private void ensureNoPendingClosure(String assignmentId) {
         closureRepository.findByAssignment_Id(assignmentId).ifPresent(c -> {
-            if (!"COMPLETED".equals(c.getStatus())) {
+            if (!"COMPLETED".equals(c.getStatus()) && !"REJECTED".equals(c.getStatus())) {
                 throw new RuntimeException("A closure request is already pending for this locker");
             }
         });

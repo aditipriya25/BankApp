@@ -1,10 +1,11 @@
-define(['app/pages'], function (pages) {
+define(['app/pages', 'app/session', 'app/utils'], function (pages, session, utils) {
   'use strict';
+
   var routes = {
-    home: pages.home,
-    features: pages.home,
-    login: pages.login,
-    signup: pages.signup,
+    home:               pages.home,
+    features:           pages.home,
+    login:              pages.login,
+    signup:             pages.signup,
     // Customer pages
     'customer-dashboard':  pages.customerDashboard,
     'customer-lockers':    pages.customerLockers,
@@ -27,5 +28,32 @@ define(['app/pages'], function (pages) {
     // Shared
     chatbot: pages.chatbot
   };
-  return { render: function () { var route = (location.hash || '#/home').replace(/^#\//, '').split('#')[0]; (routes[route] || pages.home)(); } };
+
+  /** Public routes that should redirect to dashboard when already logged in */
+  var publicOnlyRoutes = { home: true, features: true, login: true, signup: true };
+
+  return {
+    render: function () {
+      var hash  = (location.hash || '#/home').replace(/^#\//, '').split('#')[0].split('?')[0];
+      var route = hash || 'home';
+      var loggedIn = session.isLoggedIn();
+      var role     = session.getRole();
+
+      // If already logged-in and visiting login/signup/home → redirect to dashboard
+      if (loggedIn && publicOnlyRoutes[route]) {
+        utils.go(role === 'EMPLOYEE' ? 'employee-dashboard' : 'customer-dashboard');
+        return;
+      }
+
+      // If not logged-in and trying to access a protected route → send to login
+      if (!loggedIn && !publicOnlyRoutes[route]) {
+        utils.go('login');
+        return;
+      }
+
+      // Render the matching page or fall back to home
+      var page = routes[route] || pages.home;
+      page();
+    }
+  };
 });

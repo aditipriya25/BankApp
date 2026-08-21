@@ -169,60 +169,35 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
         return;
       }
 
-      /* Build a card + optional pay form for each assignment */
-      var cards = list.map(function (a, idx) {
+      /* Build status cards for each assignment — no payment form here (use Pay Rent page) */
+      var cards = list.map(function (a) {
         var acReq = a.requestStatus === 'APPROVED' ? 'ac-green' : a.requestStatus === 'PAID' ? 'ac-blue' : 'ac-amber';
         var acPay = a.paymentStatus === 'PAID' ? 'ac-green' : 'ac-amber';
-        var payPanel = (a.requestStatus === 'APPROVED' && a.paymentStatus !== 'PAID')
-          ? '<div class="panel" style="margin-top:.8rem;">' +
-              '<h3>Pay for Locker ' + e(a.locker && a.locker.lockerNumber) + '</h3>' +
-              '<form id="pay-' + idx + '" class="inline-form" data-id="' + e(a.id) + '">' +
-                '<div class="field"><label>Payment method</label>' +
-                  '<select class="form-select" name="paymentMethod">' +
-                    '<option value="ONLINE">Online</option>' +
-                    '<option value="OFFLINE">Offline (at branch)</option>' +
-                  '</select>' +
-                '</div>' +
-                '<div class="field" style="flex:none;"><button class="btn btn-primary" type="submit">Pay Now</button></div>' +
-              '</form>' +
-            '</div>'
+        var payBtn = (a.requestStatus === 'PAID')
+          ? '<a class="btn btn-sm btn-primary" href="#/customer-rent" style="margin-top:.8rem;display:inline-block;">💳 Pay Annual Rent</a>'
           : '';
-        return '<div class="panel" style="margin-bottom:1rem;">' +
-          '<h3 style="margin-bottom:.8rem;">🔐 Locker ' + e(a.locker && a.locker.lockerNumber) +
-            ' <span style="font-size:.82rem;font-weight:400;color:var(--ink2);">' + e(a.locker && a.locker.size) + ' · ' + m(a.locker && a.locker.price) + '/mo</span></h3>' +
-          '<div class="stat-grid">' +
-            '<div class="stat-card ' + acReq + '">' +
-              '<div class="sc-label">📋 Request Status</div>' +
-              '<div style="margin-top:.6rem;">' + b(a.requestStatus) + '</div>' +
-            '</div>' +
-            '<div class="stat-card ' + acPay + '">' +
-              '<div class="sc-label">💳 Payment</div>' +
-              '<div style="margin-top:.6rem;">' + b(a.paymentStatus) + '</div>' +
-              '<div class="sc-sub" style="margin-top:.4rem;">' + (a.paymentDueDate ? 'Due ' + d(a.paymentDueDate) : '') + '</div>' +
-            '</div>' +
-          '</div>' +
-          payPanel +
-          '</div>';
+        return '<div class="panel" style="margin-bottom:1rem;">'
+          + '<h3 style="margin-bottom:.8rem;">🔐 Locker ' + e(a.locker && a.locker.lockerNumber) +
+            ' <span style="font-size:.82rem;font-weight:400;color:var(--ink2);">' + e(a.locker && a.locker.size) + ' · ₹' + (a.locker && a.locker.price ? Number(a.locker.price).toLocaleString('en-IN') : 'N/A') + '/year</span></h3>'
+          + '<div class="stat-grid">'
+            + '<div class="stat-card ' + acReq + '">'
+              + '<div class="sc-label">📋 Request Status</div>'
+              + '<div style="margin-top:.6rem;">' + b(a.requestStatus) + '</div>'
+            + '</div>'
+            + '<div class="stat-card ' + acPay + '">'
+              + '<div class="sc-label">💳 Annual Rent Status</div>'
+              + '<div style="margin-top:.6rem;">' + b(a.paymentStatus) + '</div>'
+              + '<div class="sc-sub" style="margin-top:.4rem;">' + (a.nextRentDueDate ? 'Next due: ' + d(a.nextRentDueDate) : '') + '</div>'
+            + '</div>'
+          + '</div>'
+          + payBtn
+          + '</div>';
       }).join('');
 
       document.getElementById('data').innerHTML =
         cards +
         '<a class="btn btn-outline" href="#/customer-lockers" style="display:inline-block;margin-top:.5rem;">+ Request another locker</a>';
 
-      /* Wire pay forms */
-      list.forEach(function (a, idx) {
-        var payForm = document.getElementById('pay-' + idx);
-        if (payForm) {
-          payForm.onsubmit = async function (ev) {
-            ev.preventDefault();
-            var form = ev.currentTarget;
-            try {
-              await api.post('/api/locker-assignments/' + form.dataset.id + '/pay', Object.fromEntries(new FormData(form)));
-              customerDashboard();
-            } catch (err) { shell.message(err.message, 'error'); }
-          };
-        }
-      });
     }).catch(showError('data'));
   }
 
@@ -243,9 +218,9 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
           '<div class="field"><label>Filter by size</label>' +
             '<select id="szFilter" class="form-select" name="size">' +
               '<option value="">All sizes</option>' +
-              '<option value="SMALL">SMALL — ₹500/mo</option>' +
-              '<option value="MEDIUM">MEDIUM — ₹1,000/mo</option>' +
-              '<option value="LARGE">LARGE — ₹2,000/mo</option>' +
+              '<option value="SMALL">SMALL — ₹6,000/year</option>' +
+              '<option value="MEDIUM">MEDIUM — ₹12,000/year</option>' +
+              '<option value="LARGE">LARGE — ₹24,000/year</option>' +
             '</select>' +
           '</div>' +
           '<div class="field" style="flex:none;display:flex;gap:.5rem;align-items:flex-end;">' +
@@ -281,7 +256,7 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
         html += '<div class="sz-section">' +
           '<div class="sz-header">' +
             '<span class="sz-badge">' + e(sz) + '</span>' +
-            '<span class="sz-price">₹' + (price ? Number(price).toLocaleString('en-IN') + ' / mo' : 'N/A') + '</span>' +
+            '<span class="sz-price">₹' + (price ? Number(price).toLocaleString('en-IN') + ' / year' : 'N/A') + '</span>' +
             '<span class="sz-count">' + grouped[sz].length + ' lockers</span>' +
           '</div>' +
           '<div class="ticket-grid">';
@@ -400,7 +375,7 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
             '<div class="field"><label>PAN address</label><input class="form-input" name="panAddress" required placeholder="Address on PAN"></div>' +
             '<div class="field"><label>Live photo URL</label><input class="form-input" name="livePhotoUrl" type="url" required placeholder="https://..."></div>' +
           '</div>' +
-          '<div class="check-row"><input name="photoMatchFlag" type="checkbox" required><span>Live photo matches Aadhaar photo</span></div>' +
+          '<div class="notice info" style="margin-bottom:1rem;">ℹ️ Your submitted documents will be reviewed by a bank employee. You will be notified once your KYC is approved or rejected.</div>' +
           '<button class="btn btn-primary" type="submit">Submit KYC</button>' +
         '</form>' +
       '</div>',
@@ -431,11 +406,12 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
       ev.preventDefault();
       var form = ev.currentTarget;
       var values = Object.fromEntries(new FormData(form));
-      values.photoMatchFlag = form.photoMatchFlag.checked;
+      // photoMatchFlag is set by employee during review, NOT by customer
+      delete values.photoMatchFlag;
       try {
         await api.post('/api/kyc/submit/me', values);
         load();
-        shell.message('KYC submitted successfully!', 'success');
+        shell.message('KYC submitted! An employee will review your documents shortly.', 'success');
       } catch (err) { shell.message(err.message, 'error'); }
     };
   }
@@ -527,7 +503,7 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
     );
 
     document.getElementById('addSz').onchange = function () {
-      document.getElementById('addPr').value = { SMALL: 500, MEDIUM: 1000, LARGE: 2000 }[this.value] || '';
+      document.getElementById('addPr').value = { SMALL: 6000, MEDIUM: 12000, LARGE: 24000 }[this.value] || '';
     };
 
     function load() {
@@ -773,8 +749,9 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
         var lid = e(a.id), ln = e(a.locker && a.locker.lockerNumber);
         return '<div class="panel" style="margin-bottom:1.2rem;" id="nom-panel-' + lid + '">' +
           '<h3>🔐 Locker ' + ln + ' Nominees</h3>' +
+          '<input class="form-input" id="nom-search-' + lid + '" placeholder="🔍 Search nominees by name or relationship…" style="max-width:340px;margin-bottom:.6rem;">' +
           '<div id="noms-' + lid + '"></div>' +
-          '<details style="margin-top:.8rem;">' +
+          '<details style="margin-top:.8rem;" id="nom-details-' + lid + '">' +
           '<summary class="btn btn-outline btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;">+ Add Nominee (Form SL1)</summary>' +
           '<form id="nf-' + lid + '" class="inline-form" style="margin-top:.8rem;flex-wrap:wrap;" data-aid="' + lid + '">' +
             '<div class="field"><label>Full name *</label><input class="form-input" name="name" required placeholder="Nominee full name"></div>' +
@@ -794,30 +771,48 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
 
       paid.forEach(function (a) {
         var lid = a.id;
-        // Load existing nominees
-        api.get('/api/nominees/' + lid).then(function (noms) {
-          var el = document.getElementById('noms-' + lid);
-          if (!el) return;
-          if (!noms || !noms.length) {
-            el.innerHTML = '<p style="color:var(--ink2);font-size:.88rem;">No nominees registered yet. Add one below.</p>';
-          } else {
-            el.innerHTML = '<div class="table-wrap"><table class="dt-table"><thead><tr><th>Name</th><th>Relationship</th><th>Form</th><th>Minor</th><th>Action</th></tr></thead><tbody>' +
-              noms.map(function (n) {
-                return '<tr><td>' + e(n.name) + '</td><td>' + e(n.relationship) + '</td>' +
-                  '<td><span class="cbadge cbadge-blue">' + e(n.formType) + '</span></td>' +
-                  '<td>' + (n.minor ? '✅' : '—') + '</td>' +
-                  '<td><button class="btn btn-sm btn-danger" data-del="' + e(n.id) + '" data-aid="' + e(lid) + '">Cancel (SL2)</button></td></tr>';
-              }).join('') + '</tbody></table></div>';
-            // Wire delete
-            el.querySelectorAll('[data-del]').forEach(function (btn) {
-              btn.onclick = async function () {
-                if (!confirm('Cancel this nomination (Form SL2)?')) return;
-                try { await api.delete('/api/nominees/nominee/' + btn.dataset.del); customerNominee(); shell.message('Nomination cancelled.', 'success'); }
-                catch (err) { shell.message(err.message, 'error'); }
-              };
+
+        /** Reload nominees for just this locker's panel — keeps other panels intact */
+        function loadNoms() {
+          api.get('/api/nominees/' + lid).then(function (noms) {
+            var el = document.getElementById('noms-' + lid);
+            if (!el) return;
+            var searchVal = (document.getElementById('nom-search-' + lid) || {}).value || '';
+            var filtered = (noms || []).filter(function (n) {
+              if (!searchVal) return true;
+              var q = searchVal.toLowerCase();
+              return (n.name || '').toLowerCase().includes(q) ||
+                     (n.relationship || '').toLowerCase().includes(q);
             });
-          }
-        }).catch(function () {});
+            if (!filtered.length) {
+              el.innerHTML = '<p style="color:var(--ink2);font-size:.88rem;">' +
+                (noms && noms.length ? 'No nominees match your search.' : 'No nominees registered yet. Add one below.') +
+                '</p>';
+            } else {
+              el.innerHTML = '<div class="table-wrap"><table class="dt-table"><thead><tr><th>Name</th><th>Relationship</th><th>Form</th><th>Minor</th><th>Action</th></tr></thead><tbody>' +
+                filtered.map(function (n) {
+                  return '<tr><td>' + e(n.name) + '</td><td>' + e(n.relationship) + '</td>' +
+                    '<td><span class="cbadge cbadge-blue">' + e(n.formType) + '</span></td>' +
+                    '<td>' + (n.minor ? '✅' : '—') + '</td>' +
+                    '<td><button class="btn btn-sm btn-danger" data-del="' + e(n.id) + '" data-aid="' + e(lid) + '">Cancel (SL2)</button></td></tr>';
+                }).join('') + '</tbody></table></div>';
+              // Wire delete
+              el.querySelectorAll('[data-del]').forEach(function (btn) {
+                btn.onclick = async function () {
+                  if (!confirm('Cancel this nomination (Form SL2)?')) return;
+                  try { await api.delete('/api/nominees/nominee/' + btn.dataset.del); loadNoms(); shell.message('Nomination cancelled.', 'success'); }
+                  catch (err) { shell.message(err.message, 'error'); }
+                };
+              });
+            }
+          }).catch(function () {});
+        }
+
+        loadNoms();
+
+        // Wire search
+        var searchEl = document.getElementById('nom-search-' + lid);
+        if (searchEl) searchEl.oninput = loadNoms;
 
         // Wire minor toggle
         var form = document.getElementById('nf-' + lid);
@@ -829,8 +824,12 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
           ev.preventDefault();
           var vals = Object.fromEntries(new FormData(form));
           vals.isMinor = form.querySelector('[name="isMinor"]').checked;
-          try { await api.post('/api/nominees/' + lid, vals); customerNominee(); shell.message('Nominee added!', 'success'); }
-          catch (err) { shell.message(err.message, 'error'); }
+          try {
+            await api.post('/api/nominees/' + lid, vals);
+            form.reset();
+            loadNoms(); // refresh only this locker's nominees — keep the panel open
+            shell.message('Nominee added! ✅', 'success');
+          } catch (err) { shell.message(err.message, 'error'); }
         };
       });
     }).catch(showError('data'));
@@ -866,7 +865,8 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
           var ln = e(a.locker && a.locker.lockerNumber);
           if (!ag) {
             return '<div class="panel" style="margin-bottom:1rem;"><h3>🔐 Locker ' + ln + '</h3>' +
-              '<div class="notice info">Agreement not yet generated by bank. Please contact your branch.</div></div>';
+              '<div class="notice info">⏳ Your locker agreement is being prepared by the bank. ' +
+              'It will appear here once generated. You will receive a notification when it\'s ready to sign.</div></div>';
           }
           var signed = ag.signedByCustomer;
           return '<div class="panel" style="margin-bottom:1.5rem;">' +
@@ -922,11 +922,11 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
 
       var html = paid.map(function (a, idx) {
         var aid = e(a.id), ln = e(a.locker && a.locker.lockerNumber);
-        var annualRent = a.locker && a.locker.price ? (parseFloat(a.locker.price) * 12).toLocaleString('en-IN') : 'N/A';
+        var annualRent = a.locker && a.locker.price ? parseFloat(a.locker.price).toLocaleString('en-IN') : 'N/A';
         var rentDue = a.nextRentDueDate ? d(a.nextRentDueDate) : 'Not set';
         var unpaid = a.consecutiveUnpaidYears || 0;
         return '<div class="panel" style="margin-bottom:1.5rem;">' +
-          '<h3>🔐 Locker ' + ln + ' — Annual Rent: ₹' + annualRent + '</h3>' +
+          '<h3>🔐 Locker ' + ln + ' — Annual Rent: ₹' + annualRent + ' / year</h3>' +
           (unpaid > 0 ? '<div class="notice error">⚠️ ' + unpaid + ' consecutive year(s) of unpaid rent. Forced closure after 3 years (RBI 6.3.1).</div>' : '') +
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin:.8rem 0;">' +
             '<div class="stat-card ac-blue"><div class="sc-label">Rent Paid Until</div><div>' + (a.rentPaidUntil ? d(a.rentPaidUntil) : '—') + '</div></div>' +
@@ -1141,10 +1141,12 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
       });
     }).catch(showError('data'));
 
-    function closureStep(label, currentStatus, doneStatuses) {
-      var done = doneStatuses.includes(currentStatus);
-      var cur  = currentStatus === doneStatuses[0];
-      return '<div class="tl-step ' + (done ? 'done' : cur ? 'current' : '') + '"><div class="tl-dot"></div><div class="tl-label">' + label + '</div></div>';
+    function closureStep(label, icon, done, current) {
+      var cls = done ? 'done' : current ? 'current' : '';
+      return '<div class="tl-step ' + cls + '">' +
+        '<div class="tl-dot">' + (done ? '✓' : (current ? icon : '')) + '</div>' +
+        '<div class="tl-label">' + label + '</div>' +
+      '</div>';
     }
   }
 
@@ -1375,24 +1377,55 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
         '<div class="panel" style="margin-top:1rem;">' +
           '<h2>Pending Closures</h2>' +
           (!pending.length ? '<div class="empty"><div class="empty-icon">✅</div><h3>No pending closures</h3></div>' :
-            pending.map(function (c) {
-              var a = c.assignment || {};
-              return '<div class="kyc-rec" style="margin-bottom:.8rem;">' +
-                '<div>' +
-                  '<h4>' + b(c.closureType) + ' — Locker ' + e((a.locker && a.locker.lockerNumber) || '—') + '</h4>' +
-                  '<p style="font-size:.82rem;color:var(--ink2);">Customer: ' + e((a.customer && a.customer.fullName) || '—') +
-                    ' · Status: ' + b(c.status) + ' · Requested: ' + d(c.requestedAt) + '</p>' +
-                  (c.noticeDueDate ? '<p style="font-size:.8rem;color:var(--ink2);">Notice Due: ' + d(c.noticeDueDate) + '</p>' : '') +
-                '</div>' +
-                '<form data-close-id="' + e(c.id) + '" class="close-form inline-form" style="flex-wrap:wrap;">' +
-                  '<div class="field" style="flex:1 0 100%"><label>Inventory Details *</label><textarea class="form-input" name="inventoryDetails" rows="2" required placeholder="List all items found in locker…"></textarea></div>' +
-                  '<div class="field"><label>Witness 1</label><input class="form-input" name="witness1Name" required placeholder="First witness name"></div>' +
-                  '<div class="field"><label>Witness 2</label><input class="form-input" name="witness2Name" required placeholder="Second witness name"></div>' +
-                  '<div class="field"><label>Video URL</label><input class="form-input" name="videoUrl" type="url" placeholder="https://... (RBI 6.3.2)"></div>' +
-                  (c.closureType === 'NON_PAYMENT' ? '<div class="field" style="flex:1 0 100%"><label>Newspaper Notice Details</label><input class="form-input" name="newspaperNoticeDetails" placeholder="Two newspaper dailies (RBI 6.3.2)"></div>' : '') +
-                  '<div class="field" style="flex:none;align-self:flex-end;"><button class="btn btn-primary" type="submit">✅ Complete Closure</button></div>' +
-                '</form></div>';
-            }).join('')) +
+            /* ---- REQUESTED closures: Approve or Reject ---- */
+            var requested = pending.filter(function (c) { return c.status === 'REQUESTED'; });
+            var inProgress = pending.filter(function (c) { return c.status !== 'REQUESTED'; });
+
+            (requested.length ? [
+              '<div class="panel" style="margin-bottom:1.2rem;">',
+              '<h3 style="color:var(--amber);">⏳ Pending Approval (' + requested.length + ')</h3>',
+              '<p class="sc-sub" style="margin-bottom:.8rem;">These customers have requested closure. Approve to release locker as Available, or reject to keep it active.</p>',
+              requested.map(function (c) {
+                var a = c.assignment || {};
+                return '<div class="kyc-rec" style="margin-bottom:.8rem;">' +
+                  '<div>' +
+                    '<h4>' + b(c.closureType) + ' — Locker ' + e((a.locker && a.locker.lockerNumber) || '—') + '</h4>' +
+                    '<p style="font-size:.82rem;color:var(--ink2);">Customer: ' + e((a.customer && a.customer.fullName) || '—') +
+                      ' · Reason: ' + e(c.reason || '—') + ' · Requested: ' + d(c.requestedAt) + '</p>' +
+                  '</div>' +
+                  '<div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-top:.6rem;">' +
+                    '<button class="btn btn-primary btn-sm approve-cl" data-cid="' + e(c.id) + '">✅ Approve Closure</button>' +
+                    '<input class="form-input" style="max-width:200px;font-size:.82rem;" id="rej-reason-' + e(c.id) + '" placeholder="Rejection reason (optional)">' +
+                    '<button class="btn btn-danger btn-sm reject-cl" data-cid="' + e(c.id) + '">❌ Reject</button>' +
+                  '</div>' +
+                '</div>';
+              }).join(''),
+              '</div>'
+            ] : []).join('') +
+
+            /* ---- IN_PROGRESS / NOTICE_ISSUED closures: Completion form ---- */
+            (inProgress.length ?
+              '<div class="panel">' +
+              '<h3 style="color:var(--blue);">📋 In Progress / Notice Issued (' + inProgress.length + ')</h3>' +
+              inProgress.map(function (c) {
+                var a = c.assignment || {};
+                return '<div class="kyc-rec" style="margin-bottom:.8rem;">' +
+                  '<div>' +
+                    '<h4>' + b(c.closureType) + ' — Locker ' + e((a.locker && a.locker.lockerNumber) || '—') + '</h4>' +
+                    '<p style="font-size:.82rem;color:var(--ink2);">Customer: ' + e((a.customer && a.customer.fullName) || '—') +
+                      ' · Status: ' + b(c.status) + ' · Requested: ' + d(c.requestedAt) + '</p>' +
+                    (c.noticeDueDate ? '<p style="font-size:.8rem;color:var(--ink2);">Notice Due: ' + d(c.noticeDueDate) + '</p>' : '') +
+                  '</div>' +
+                  '<form data-close-id="' + e(c.id) + '" class="close-form inline-form" style="flex-wrap:wrap;">' +
+                    '<div class="field" style="flex:1 0 100%"><label>Inventory Details *</label><textarea class="form-input" name="inventoryDetails" rows="2" required placeholder="List all items found in locker…"></textarea></div>' +
+                    '<div class="field"><label>Witness 1</label><input class="form-input" name="witness1Name" required placeholder="First witness name"></div>' +
+                    '<div class="field"><label>Witness 2</label><input class="form-input" name="witness2Name" required placeholder="Second witness name"></div>' +
+                    '<div class="field"><label>Video URL</label><input class="form-input" name="videoUrl" type="url" placeholder="https://… (RBI 6.3.2)"></div>' +
+                    (c.closureType === 'NON_PAYMENT' ? '<div class="field" style="flex:1 0 100%"><label>Newspaper Notice Details</label><input class="form-input" name="newspaperNoticeDetails" placeholder="Two newspaper dailies (RBI 6.3.2)"></div>' : '') +
+                    '<div class="field" style="flex:none;align-self:flex-end;"><button class="btn btn-primary" type="submit">✅ Complete Closure</button></div>' +
+                  '</form></div>';
+              }).join('') +
+              '</div>' : '') +
         '</div>';
 
       // Charts
@@ -1426,7 +1459,33 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
         }, tp())
       });
 
-      // Wire completion forms
+      // Wire approve buttons
+      document.querySelectorAll('.approve-cl').forEach(function (btn) {
+        btn.onclick = async function () {
+          if (!confirm('Approve this closure? The locker will immediately become AVAILABLE.')) return;
+          try {
+            await api.put('/api/closure/' + btn.dataset.cid + '/approve', {});
+            employeeClosures();
+            shell.message('Closure approved. Locker is now Available. Customer notified.', 'success');
+          } catch (err) { shell.message(err.message, 'error'); }
+        };
+      });
+
+      // Wire reject buttons
+      document.querySelectorAll('.reject-cl').forEach(function (btn) {
+        btn.onclick = async function () {
+          var reasonEl = document.getElementById('rej-reason-' + btn.dataset.cid);
+          var reason = reasonEl ? reasonEl.value : '';
+          if (!confirm('Reject this closure request?')) return;
+          try {
+            await api.put('/api/closure/' + btn.dataset.cid + '/reject', { reason: reason });
+            employeeClosures();
+            shell.message('Closure rejected. Customer has been notified.', 'success');
+          } catch (err) { shell.message(err.message, 'error'); }
+        };
+      });
+
+      // Wire completion forms (NON_PAYMENT / LAW_ENFORCEMENT)
       document.querySelectorAll('.close-form').forEach(function (form) {
         form.onsubmit = async function (ev) {
           ev.preventDefault();

@@ -983,3 +983,31 @@ html {
   .timeline { flex-direction: column; }
   .tl-step::after { display: none; }
 }
+
+/* -- Notification bell & dropdown --------------------------------------- */
+.notif-item {
+  padding: .55rem 1rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background .15s;
+}
+.notif-item:last-child { border-bottom: none; }
+.notif-item:hover { background: var(--bg3); }
+.notif-item.notif-unread { background: rgba(59,130,246,.07); }
+[data-theme="dark"] .notif-item.notif-unread { background: rgba(59,130,246,.1); }
+
+/* -- Password strength hint ---------------------------------------------- */
+.pwd-hint { font-size: .74rem; color: var(--ink2); margin-top: .2rem; }
+
+/* -- Closure approve/reject row ----------------------------------------- */
+.approve-cl { background: linear-gradient(135deg,#22c55e,#16a34a); color:#fff; border:none; }
+.approve-cl:hover { opacity:.9; }
+.reject-cl { background: linear-gradient(135deg,#ef4444,#dc2626); color:#fff; border:none; }
+.reject-cl:hover { opacity:.9; }
+
+/* -- Nominee search ----------------------------------------------------- */
+#nom-search { max-width: 340px; margin-bottom: .6rem; }
+
+/* -- Closure timeline with Employee Approval step ----------------------- */
+.tl-step.current .tl-dot { background: var(--brand); color: #fff; font-weight:700; }
+.tl-step.done .tl-dot { background: #22c55e; color: #fff; }

@@ -8,6 +8,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/closure")
@@ -57,7 +58,31 @@ public class LockerClosureController {
         return ResponseEntity.ok(closureService.initiateLawEnforcementClosure(assignmentId, auth.getName(), dto));
     }
 
-    /** Employee: Complete a closure (add inventory, witnesses, video, finalize) */
+    /**
+     * Employee: Approve a customer's REQUESTED closure.
+     * Immediately sets locker to AVAILABLE and assignment to CLOSED.
+     */
+    @PutMapping("/{closureId}/approve")
+    public ResponseEntity<LockerClosure> approveClosure(
+            @PathVariable String closureId,
+            Authentication auth) {
+        return ResponseEntity.ok(closureService.approveClosure(closureId, auth.getName()));
+    }
+
+    /**
+     * Employee: Reject a customer's REQUESTED closure.
+     * Reverts closure status; locker remains active.
+     */
+    @PutMapping("/{closureId}/reject")
+    public ResponseEntity<LockerClosure> rejectClosure(
+            @PathVariable String closureId,
+            @RequestBody(required = false) Map<String, String> body,
+            Authentication auth) {
+        String reason = body != null ? body.get("reason") : null;
+        return ResponseEntity.ok(closureService.rejectClosure(closureId, auth.getName(), reason));
+    }
+
+    /** Employee: Complete a NON_PAYMENT/LAW_ENFORCEMENT closure (add inventory, witnesses, video) */
     @PutMapping("/{closureId}/complete")
     public ResponseEntity<LockerClosure> completeClosure(
             @PathVariable String closureId,

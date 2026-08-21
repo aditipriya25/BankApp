@@ -1,4 +1,4 @@
-define(['app/session', 'app/utils'], function (session, utils) {
+define(['app/session', 'app/utils', 'app/api'], function (session, utils, api) {
   'use strict';
 
   /* ── Inline SVG Icons ──────────────────────────────────── */
@@ -18,7 +18,8 @@ define(['app/session', 'app/utils'], function (session, utils) {
     person:  '<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
     money:   '<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
     close2:  '<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>',
-    menu:    '<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17" x2="21" y2="17"/></svg>'
+    menu:    '<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17" x2="21" y2="17"/></svg>',
+    bell:    '<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>'
   };
 
   /* ── Nav config ─────────────────────────────────────────── */
@@ -68,13 +69,27 @@ define(['app/session', 'app/utils'], function (session, utils) {
     'chatbot':             'AI Assistant'
   };
 
+  /* ── Notification type → colour ─────────────────────────── */
+  var NOTIF_COLORS = {
+    KYC_APPROVED:       '#22c55e',
+    KYC_REJECTED:       '#ef4444',
+    KYC_SUBMITTED:      '#f59e0b',
+    RENT_PAID:          '#22c55e',
+    RENT_DUE:           '#f59e0b',
+    CLOSURE_REQUESTED:  '#f59e0b',
+    CLOSURE_APPROVED:   '#22c55e',
+    CLOSURE_REJECTED:   '#ef4444',
+    AGREEMENT_READY:    '#3b82f6',
+    AGREEMENT_SIGNED:   '#22c55e',
+    GENERAL:            '#94a3b8'
+  };
+
   /* ── Theme helpers ──────────────────────────────────────── */
   function getTheme() { return localStorage.getItem('vb-theme') || 'dark'; }
 
   function applyTheme(t) {
     localStorage.setItem('vb-theme', t);
     document.documentElement.setAttribute('data-theme', t);
-    /* Refresh all toggle buttons */
     document.querySelectorAll('.theme-btn').forEach(function (b) {
       b.innerHTML  = t === 'dark' ? IC.sun : IC.moon;
       b.title = t === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
@@ -82,6 +97,93 @@ define(['app/session', 'app/utils'], function (session, utils) {
   }
 
   function toggleTheme() { applyTheme(getTheme() === 'dark' ? 'light' : 'dark'); }
+
+  /* ── Notification bell ──────────────────────────────────── */
+  function loadNotifications() {
+    var bell  = document.getElementById('vb-bell');
+    var badge = document.getElementById('vb-bell-badge');
+    var dropdown = document.getElementById('vb-notif-drop');
+    if (!bell) return;
+
+    api.get('/api/notifications/unread-count').then(function (res) {
+      var count = res && res.count ? res.count : 0;
+      if (badge) {
+        badge.textContent = count > 9 ? '9+' : String(count);
+        badge.style.display = count > 0 ? 'flex' : 'none';
+      }
+    }).catch(function () {});
+
+    bell.onclick = function (e) {
+      e.stopPropagation();
+      if (!dropdown) return;
+      var visible = dropdown.style.display !== 'none';
+      if (visible) {
+        dropdown.style.display = 'none';
+        return;
+      }
+      dropdown.style.display = 'block';
+      dropdown.innerHTML = '<div style="padding:.6rem 1rem;font-size:.78rem;color:var(--ink2);font-weight:600;letter-spacing:.06em;">NOTIFICATIONS</div>';
+
+      api.get('/api/notifications').then(function (list) {
+        if (!list || !list.length) {
+          dropdown.innerHTML += '<div style="padding:.8rem 1rem;color:var(--ink2);font-size:.85rem;">No notifications yet.</div>';
+          return;
+        }
+        var top = list.slice(0, 8);
+        top.forEach(function (n) {
+          var dot = '<span style="width:8px;height:8px;border-radius:50%;background:' +
+            (NOTIF_COLORS[n.type] || '#94a3b8') +
+            ';display:inline-block;flex-shrink:0;margin-top:3px;"></span>';
+          var item = document.createElement('div');
+          item.className = 'notif-item' + (n.read ? '' : ' notif-unread');
+          item.innerHTML =
+            '<div style="display:flex;gap:.6rem;align-items:flex-start;">' +
+              dot +
+              '<div style="flex:1;">' +
+                '<div style="font-size:.83rem;font-weight:' + (n.read ? '400' : '600') + ';color:var(--ink1);">' +
+                  utils.escape(n.title) +
+                '</div>' +
+                '<div style="font-size:.76rem;color:var(--ink2);margin-top:.15rem;">' +
+                  utils.escape(n.message ? n.message.substring(0, 80) + (n.message.length > 80 ? '…' : '') : '') +
+                '</div>' +
+              '</div>' +
+            '</div>';
+          item.onclick = function () {
+            api.put('/api/notifications/' + n.id + '/read', {}).catch(function () {});
+            item.classList.remove('notif-unread');
+            if (badge) {
+              var cur = parseInt(badge.textContent, 10) || 0;
+              var next = Math.max(0, cur - 1);
+              badge.textContent = next > 9 ? '9+' : String(next);
+              badge.style.display = next > 0 ? 'flex' : 'none';
+            }
+          };
+          dropdown.appendChild(item);
+        });
+        // Mark all read button
+        var markAll = document.createElement('div');
+        markAll.style.cssText = 'padding:.5rem 1rem;text-align:center;border-top:1px solid var(--border);margin-top:.3rem;';
+        markAll.innerHTML = '<button class="btn btn-ghost btn-sm" id="notif-mark-all">Mark all as read</button>';
+        dropdown.appendChild(markAll);
+        var btn = document.getElementById('notif-mark-all');
+        if (btn) btn.onclick = function (e) {
+          e.stopPropagation();
+          api.put('/api/notifications/read-all', {}).then(function () {
+            dropdown.style.display = 'none';
+            if (badge) badge.style.display = 'none';
+          }).catch(function () {});
+        };
+      }).catch(function () {
+        dropdown.innerHTML += '<div style="padding:.8rem 1rem;color:var(--ink2);font-size:.85rem;">Could not load notifications.</div>';
+      });
+    };
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function () {
+      if (dropdown) dropdown.style.display = 'none';
+    });
+    if (dropdown) dropdown.onclick = function (e) { e.stopPropagation(); };
+  }
 
   /* ── Build sidebar HTML ─────────────────────────────────── */
   function buildSidebar(nav, active, isEmp, email) {
@@ -143,10 +245,18 @@ define(['app/session', 'app/utils'], function (session, utils) {
               '<button class="hamburger" id="vb-hbg" title="Toggle menu">' + IC.menu + '</button>' +
               '<span class="topbar-title">' + utils.escape(title) + '</span>' +
               '<div class="topbar-actions">' +
+                /* Notification bell */
+                '<div class="notif-wrap" style="position:relative;">' +
+                  '<button class="theme-btn" id="vb-bell" title="Notifications" style="position:relative;">' +
+                    IC.bell +
+                    '<span id="vb-bell-badge" style="position:absolute;top:1px;right:1px;min-width:16px;height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:.62rem;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 3px;"></span>' +
+                  '</button>' +
+                  '<div id="vb-notif-drop" style="display:none;position:absolute;right:0;top:calc(100% + 8px);width:300px;max-height:380px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.25);z-index:9999;"></div>' +
+                '</div>' +
                 '<button class="theme-btn" id="vb-theme" title="' + (theme === 'dark' ? 'Switch to light' : 'Switch to dark') + '">' +
                   (theme === 'dark' ? IC.sun : IC.moon) +
                 '</button>' +
-                '<button class="btn btn-sm signout-btn" data-action="logout">' +
+                '<button class="btn btn-sm signout-btn" id="vb-signout">' +
                   IC.logout + '<span>Sign out</span>' +
                 '</button>' +
               '</div>' +
@@ -170,6 +280,9 @@ define(['app/session', 'app/utils'], function (session, utils) {
       function closeSb() { sb.classList.remove('open'); ov.classList.remove('open'); }
       if (hbg) hbg.onclick = function () { sb.classList.toggle('open'); ov.classList.toggle('open'); };
       if (ov)  ov.onclick  = closeSb;
+
+      /* Load notifications */
+      loadNotifications();
 
     } else {
       /* ===== Public shell: topbar + content ===== */
@@ -206,12 +319,16 @@ define(['app/session', 'app/utils'], function (session, utils) {
 
     /* Wire theme toggle(s) */
     document.querySelectorAll('.theme-btn').forEach(function (b) {
-      b.onclick = toggleTheme;
+      if (b.id !== 'vb-bell') b.onclick = toggleTheme;
     });
 
-    /* Wire sign-out */
-    var lo = document.querySelector('[data-action="logout"]');
-    if (lo) lo.onclick = function () { session.clear(); utils.go('home'); };
+    /* Wire sign-out — clear session and go home */
+    var so = document.getElementById('vb-signout');
+    if (so) so.onclick = function () {
+      session.clear();
+      location.hash = '#/home';
+      location.reload();
+    };
 
     /* ── Page-enter animation ───────────────────── */
     var pb = document.querySelector('.page-body') || document.getElementById('pub-content');

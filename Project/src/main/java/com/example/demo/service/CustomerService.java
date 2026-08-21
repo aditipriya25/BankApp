@@ -26,6 +26,14 @@ public class CustomerService {
 	}
 
 	public Customer addCustomer(Customer c) {
+		// Enforce minimum password length of 8 characters
+		if (c.getPassword() == null || c.getPassword().length() < 8) {
+			throw new RuntimeException("Password must be at least 8 characters long.");
+		}
+		// Check for duplicate email
+		if (customerRepo.findByEmail(c.getEmail()).isPresent()) {
+			throw new RuntimeException("An account with this email already exists.");
+		}
 		String encodedPassword = passwordEncoder.encode(c.getPassword());
 		c.setPassword(encodedPassword);
 		return customerRepo.save(c);

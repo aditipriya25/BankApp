@@ -1,6 +1,56 @@
 define([], function () {
   'use strict';
-  var keys = ['bankingAuthToken', 'bankingRole', 'bankingEmail'];
-  function decode(token) { return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); }
-  return { getToken: function () { return localStorage.getItem(keys[0]); }, getRole: function () { return localStorage.getItem(keys[1]); }, getEmail: function () { return localStorage.getItem(keys[2]); }, getCustomerId: function () { return localStorage.getItem('bankingCustomerId'); }, setCustomerId: function (id) { localStorage.setItem('bankingCustomerId', id); }, setSession: function (token) { var payload = decode(token); localStorage.setItem(keys[0], token); localStorage.setItem(keys[1], payload.role); localStorage.setItem(keys[2], payload.sub); }, clear: function () { keys.forEach(function (key) { localStorage.removeItem(key); }); }, hasRole: function (role) { return !!this.getToken() && this.getRole() === role; } };
+
+  var KEYS = {
+    token:      'bankingAuthToken',
+    role:       'bankingRole',
+    email:      'bankingEmail',
+    customerId: 'bankingCustomerId'
+  };
+
+  function decode(token) {
+    try {
+      return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function isTokenExpired(token) {
+    var payload = decode(token);
+    if (!payload || !payload.exp) return true;
+    return Date.now() >= payload.exp * 1000;
+  }
+
+  return {
+    getToken:      function () { return localStorage.getItem(KEYS.token); },
+    getRole:       function () { return localStorage.getItem(KEYS.role); },
+    getEmail:      function () { return localStorage.getItem(KEYS.email); },
+    getCustomerId: function () { return localStorage.getItem(KEYS.customerId); },
+
+    setCustomerId: function (id) { localStorage.setItem(KEYS.customerId, id); },
+
+    setSession: function (token) {
+      var payload = decode(token);
+      if (!payload) return;
+      localStorage.setItem(KEYS.token, token);
+      localStorage.setItem(KEYS.role,  payload.role);
+      localStorage.setItem(KEYS.email, payload.sub);
+    },
+
+    /** Clear all session data including customerId */
+    clear: function () {
+      Object.values(KEYS).forEach(function (key) { localStorage.removeItem(key); });
+    },
+
+    /** True when token exists AND has not expired */
+    isLoggedIn: function () {
+      var token = localStorage.getItem(KEYS.token);
+      return !!token && !isTokenExpired(token);
+    },
+
+    hasRole: function (role) {
+      return this.isLoggedIn() && this.getRole() === role;
+    }
+  };
 });
