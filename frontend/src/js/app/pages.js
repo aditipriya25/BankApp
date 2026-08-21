@@ -1361,8 +1361,11 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
         byType[t].push(c);
       });
 
-      var pending   = all.filter(function (c) { return c.status !== 'COMPLETED'; });
-      var completed = all.filter(function (c) { return c.status === 'COMPLETED'; });
+      /* Split pending into sub-groups BEFORE building HTML (var inside ternary is a syntax error) */
+      var pending    = all.filter(function (c) { return c.status !== 'COMPLETED'; });
+      var completed  = all.filter(function (c) { return c.status === 'COMPLETED'; });
+      var requested  = pending.filter(function (c) { return c.status === 'REQUESTED'; });
+      var inProgress = pending.filter(function (c) { return c.status !== 'REQUESTED'; });
 
       document.getElementById('data').innerHTML =
         '<div class="stat-grid">' +
@@ -1376,56 +1379,53 @@ define(['app/api', 'app/session', 'app/shell', 'app/utils'], function (api, sess
         '</div>' +
         '<div class="panel" style="margin-top:1rem;">' +
           '<h2>Pending Closures</h2>' +
-          (!pending.length ? '<div class="empty"><div class="empty-icon">✅</div><h3>No pending closures</h3></div>' :
-            /* ---- REQUESTED closures: Approve or Reject ---- */
-            var requested = pending.filter(function (c) { return c.status === 'REQUESTED'; });
-            var inProgress = pending.filter(function (c) { return c.status !== 'REQUESTED'; });
-
-            (requested.length ? [
-              '<div class="panel" style="margin-bottom:1.2rem;">',
-              '<h3 style="color:var(--amber);">⏳ Pending Approval (' + requested.length + ')</h3>',
-              '<p class="sc-sub" style="margin-bottom:.8rem;">These customers have requested closure. Approve to release locker as Available, or reject to keep it active.</p>',
-              requested.map(function (c) {
-                var a = c.assignment || {};
-                return '<div class="kyc-rec" style="margin-bottom:.8rem;">' +
-                  '<div>' +
-                    '<h4>' + b(c.closureType) + ' — Locker ' + e((a.locker && a.locker.lockerNumber) || '—') + '</h4>' +
-                    '<p style="font-size:.82rem;color:var(--ink2);">Customer: ' + e((a.customer && a.customer.fullName) || '—') +
-                      ' · Reason: ' + e(c.reason || '—') + ' · Requested: ' + d(c.requestedAt) + '</p>' +
-                  '</div>' +
-                  '<div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-top:.6rem;">' +
-                    '<button class="btn btn-primary btn-sm approve-cl" data-cid="' + e(c.id) + '">✅ Approve Closure</button>' +
-                    '<input class="form-input" style="max-width:200px;font-size:.82rem;" id="rej-reason-' + e(c.id) + '" placeholder="Rejection reason (optional)">' +
-                    '<button class="btn btn-danger btn-sm reject-cl" data-cid="' + e(c.id) + '">❌ Reject</button>' +
-                  '</div>' +
-                '</div>';
-              }).join(''),
-              '</div>'
-            ] : []).join('') +
-
-            /* ---- IN_PROGRESS / NOTICE_ISSUED closures: Completion form ---- */
-            (inProgress.length ?
-              '<div class="panel">' +
-              '<h3 style="color:var(--blue);">📋 In Progress / Notice Issued (' + inProgress.length + ')</h3>' +
-              inProgress.map(function (c) {
-                var a = c.assignment || {};
-                return '<div class="kyc-rec" style="margin-bottom:.8rem;">' +
-                  '<div>' +
-                    '<h4>' + b(c.closureType) + ' — Locker ' + e((a.locker && a.locker.lockerNumber) || '—') + '</h4>' +
-                    '<p style="font-size:.82rem;color:var(--ink2);">Customer: ' + e((a.customer && a.customer.fullName) || '—') +
-                      ' · Status: ' + b(c.status) + ' · Requested: ' + d(c.requestedAt) + '</p>' +
-                    (c.noticeDueDate ? '<p style="font-size:.8rem;color:var(--ink2);">Notice Due: ' + d(c.noticeDueDate) + '</p>' : '') +
-                  '</div>' +
-                  '<form data-close-id="' + e(c.id) + '" class="close-form inline-form" style="flex-wrap:wrap;">' +
-                    '<div class="field" style="flex:1 0 100%"><label>Inventory Details *</label><textarea class="form-input" name="inventoryDetails" rows="2" required placeholder="List all items found in locker…"></textarea></div>' +
-                    '<div class="field"><label>Witness 1</label><input class="form-input" name="witness1Name" required placeholder="First witness name"></div>' +
-                    '<div class="field"><label>Witness 2</label><input class="form-input" name="witness2Name" required placeholder="Second witness name"></div>' +
-                    '<div class="field"><label>Video URL</label><input class="form-input" name="videoUrl" type="url" placeholder="https://… (RBI 6.3.2)"></div>' +
-                    (c.closureType === 'NON_PAYMENT' ? '<div class="field" style="flex:1 0 100%"><label>Newspaper Notice Details</label><input class="form-input" name="newspaperNoticeDetails" placeholder="Two newspaper dailies (RBI 6.3.2)"></div>' : '') +
-                    '<div class="field" style="flex:none;align-self:flex-end;"><button class="btn btn-primary" type="submit">✅ Complete Closure</button></div>' +
-                  '</form></div>';
-              }).join('') +
-              '</div>' : '') +
+          (!pending.length
+            ? '<div class="empty"><div class="empty-icon">✅</div><h3>No pending closures</h3></div>'
+            : (requested.length
+                ? '<div class="panel" style="margin-bottom:1.2rem;">' +
+                    '<h3 style="color:var(--amber);">⏳ Pending Approval (' + requested.length + ')</h3>' +
+                    '<p class="sc-sub" style="margin-bottom:.8rem;">Approve to release locker as Available, or reject to keep it active.</p>' +
+                    requested.map(function (c) {
+                      var a = c.assignment || {};
+                      return '<div class="kyc-rec" style="margin-bottom:.8rem;">' +
+                        '<div>' +
+                          '<h4>' + b(c.closureType) + ' — Locker ' + e((a.locker && a.locker.lockerNumber) || '—') + '</h4>' +
+                          '<p style="font-size:.82rem;color:var(--ink2);">Customer: ' + e((a.customer && a.customer.fullName) || '—') +
+                            ' · Reason: ' + e(c.reason || '—') + ' · Requested: ' + d(c.requestedAt) + '</p>' +
+                        '</div>' +
+                        '<div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-top:.6rem;">' +
+                          '<button class="btn btn-primary btn-sm approve-cl" data-cid="' + e(c.id) + '">✅ Approve Closure</button>' +
+                          '<input class="form-input" style="max-width:200px;font-size:.82rem;" id="rej-reason-' + e(c.id) + '" placeholder="Rejection reason (optional)">' +
+                          '<button class="btn btn-danger btn-sm reject-cl" data-cid="' + e(c.id) + '">❌ Reject</button>' +
+                        '</div>' +
+                      '</div>';
+                    }).join('') +
+                  '</div>'
+                : '') +
+              (inProgress.length
+                ? '<div class="panel">' +
+                    '<h3 style="color:var(--blue);">📋 In Progress / Notice Issued (' + inProgress.length + ')</h3>' +
+                    inProgress.map(function (c) {
+                      var a = c.assignment || {};
+                      return '<div class="kyc-rec" style="margin-bottom:.8rem;">' +
+                        '<div>' +
+                          '<h4>' + b(c.closureType) + ' — Locker ' + e((a.locker && a.locker.lockerNumber) || '—') + '</h4>' +
+                          '<p style="font-size:.82rem;color:var(--ink2);">Customer: ' + e((a.customer && a.customer.fullName) || '—') +
+                            ' · Status: ' + b(c.status) + ' · Requested: ' + d(c.requestedAt) + '</p>' +
+                          (c.noticeDueDate ? '<p style="font-size:.8rem;color:var(--ink2);">Notice Due: ' + d(c.noticeDueDate) + '</p>' : '') +
+                        '</div>' +
+                        '<form data-close-id="' + e(c.id) + '" class="close-form inline-form" style="flex-wrap:wrap;">' +
+                          '<div class="field" style="flex:1 0 100%"><label>Inventory Details *</label><textarea class="form-input" name="inventoryDetails" rows="2" required placeholder="List all items found in locker…"></textarea></div>' +
+                          '<div class="field"><label>Witness 1</label><input class="form-input" name="witness1Name" required placeholder="First witness name"></div>' +
+                          '<div class="field"><label>Witness 2</label><input class="form-input" name="witness2Name" required placeholder="Second witness name"></div>' +
+                          '<div class="field"><label>Video URL</label><input class="form-input" name="videoUrl" type="url" placeholder="https://… (RBI 6.3.2)"></div>' +
+                          (c.closureType === 'NON_PAYMENT' ? '<div class="field" style="flex:1 0 100%"><label>Newspaper Notice Details</label><input class="form-input" name="newspaperNoticeDetails" placeholder="Two newspaper dailies (RBI 6.3.2)"></div>' : '') +
+                          '<div class="field" style="flex:none;align-self:flex-end;"><button class="btn btn-primary" type="submit">✅ Complete Closure</button></div>' +
+                        '</form></div>';
+                    }).join('') +
+                  '</div>'
+                : '')
+          ) +
         '</div>';
 
       // Charts
